@@ -25,7 +25,7 @@ enum Defaults {
             notificationsEnabled: true,
             notifyOnStop: true,
             notifyOnPermission: true,
-            terminalFontName: "SF Mono",
+            terminalFontName: "Comic Code",
             terminalFontSize: 13.0,
         ])
     }

@@ -12,6 +12,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     var session: Session
     private var terminalVC: TerminalViewController?
 
+    private static let defaultSize = NSSize(width: 900, height: 600)
+    private static let autosaveName: NSWindow.FrameAutosaveName = "SessylphMainWindow"
+
     // MARK: - Initialization (empty launcher tab)
 
     init() {
@@ -23,6 +26,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.delegate = self
 
         showLauncher()
+        restoreWindowFrame(window)
     }
 
     // MARK: - Initialization (attach to existing tmux session)
@@ -36,6 +40,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.delegate = self
 
         showTerminal()
+        restoreWindowFrame(window)
     }
 
     @available(*, unavailable)
@@ -47,17 +52,35 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     private static func makeWindow(title: String) -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            contentRect: NSRect(origin: .zero, size: defaultSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
-            defer: false
+            defer: true
         )
         window.title = title
         window.tabbingMode = .preferred
         window.tabbingIdentifier = "sh.saqoo.Sessylph.terminal"
-        window.setContentSize(NSSize(width: 900, height: 600))
         window.minSize = NSSize(width: 480, height: 320)
+        // Do NOT setFrameAutosaveName here — NSHostingController will
+        // override the frame when set as contentViewController.
         return window
+    }
+
+    /// Restores saved window frame after content view is set (which may have
+    /// resized the window). Then enables auto-save for future changes.
+    private func restoreWindowFrame(_ window: NSWindow) {
+        let key = "NSWindow Frame \(Self.autosaveName)"
+        if UserDefaults.standard.string(forKey: key) != nil {
+            // Saved frame exists — restore it
+            window.setFrameUsingName(Self.autosaveName)
+        } else {
+            // First launch — use default size
+            window.setContentSize(Self.defaultSize)
+            window.center()
+        }
+        // Enable auto-save so future resizes/moves are persisted
+        window.setFrameAutosaveName(Self.autosaveName)
+        logger.info("Window frame: \(window.frame.width)x\(window.frame.height)")
     }
 
     // MARK: - Content Switching
@@ -70,7 +93,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 await self.launchClaude(directory: directory, options: options)
             }
         }
-        let hostingController = NSHostingController(rootView: launcherView)
+        let hostingController = NSHostingController(
+            rootView: launcherView.frame(maxWidth: .infinity, maxHeight: .infinity)
+        )
         window?.contentViewController = hostingController
     }
 
@@ -103,7 +128,6 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             session.isRunning = true
         } catch {
             logger.error("Failed to launch Claude: \(error.localizedDescription)")
-            // Show error alert
             let alert = NSAlert()
             alert.messageText = "Failed to Launch"
             alert.informativeText = error.localizedDescription
