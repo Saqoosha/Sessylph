@@ -100,10 +100,16 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     private func showTerminal() {
+        guard let window else { return }
+        let savedFrame = window.frame
+        let contentSize = window.contentView?.frame.size ?? Self.defaultSize
+        window.disableScreenUpdatesUntilFlush()
         let vc = TerminalViewController(session: session)
         vc.delegate = self
+        vc.preferredContentSize = contentSize
         self.terminalVC = vc
-        window?.contentViewController = vc
+        window.contentViewController = vc
+        window.setFrame(savedFrame, display: false)
     }
 
     // MARK: - Launch Claude
@@ -126,6 +132,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             )
 
             session.isRunning = true
+            SessionStore.shared.add(session)
         } catch {
             logger.error("Failed to launch Claude: \(error.localizedDescription)")
             let alert = NSAlert()

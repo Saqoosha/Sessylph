@@ -77,15 +77,20 @@ final class TabManager {
     func reattachOrphanedSessions() async {
         let existingNames = await TmuxManager.shared.listSessylphSessions()
         let trackedNames = Set(windowControllers.map(\.session.tmuxSessionName))
+        let savedSessions = SessionStore.shared.sessions
 
         for name in existingNames where !trackedNames.contains(name) {
             logger.info("Reattaching orphaned tmux session: \(name)")
 
-            var session = Session(
-                directory: URL(fileURLWithPath: NSHomeDirectory())
-            )
-            session.tmuxSessionName = name
-            session.title = name
+            // Try to restore session info from SessionStore
+            var session: Session
+            if let saved = savedSessions.first(where: { $0.tmuxSessionName == name }) {
+                session = saved
+            } else {
+                session = Session(directory: URL(fileURLWithPath: NSHomeDirectory()))
+                session.tmuxSessionName = name
+                session.title = name
+            }
             session.isRunning = true
 
             let controller = TabWindowController(session: session)
@@ -100,6 +105,12 @@ final class TabManager {
                 controller.window?.center()
                 controller.showWindow(nil)
             }
+        }
+
+        // Clean up saved sessions whose tmux sessions no longer exist
+        let existingSet = Set(existingNames)
+        for saved in savedSessions where !existingSet.contains(saved.tmuxSessionName) {
+            SessionStore.shared.remove(id: saved.id)
         }
     }
 
@@ -118,6 +129,7 @@ final class TabManager {
 
     func windowControllerDidClose(_ controller: TabWindowController) {
         windowControllers.removeAll { $0 === controller }
+        SessionStore.shared.remove(id: controller.session.id)
         logger.info("Tab closed (\(self.windowControllers.count) remaining)")
     }
 }
