@@ -1,0 +1,123 @@
+import AppKit
+import os.log
+
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "TabManager")
+
+@MainActor
+final class TabManager {
+
+    // MARK: - Singleton
+
+    static let shared = TabManager()
+
+    // MARK: - Properties
+
+    private(set) var windowControllers: [TabWindowController] = []
+
+    private init() {}
+
+    // MARK: - Tab Lifecycle
+
+    /// Creates a new empty launcher tab.
+    func newTab(in existingWindow: NSWindow? = nil) {
+        let controller = TabWindowController()
+        windowControllers.append(controller)
+
+        if let existingWindow {
+            existingWindow.addTabbedWindow(controller.window!, ordered: .above)
+            controller.window?.makeKeyAndOrderFront(nil)
+        } else {
+            if windowControllers.count == 1 {
+                controller.window?.center()
+            }
+            controller.showWindow(nil)
+        }
+
+        logger.info("New launcher tab opened")
+    }
+
+    /// Creates a tab with directory pre-selected (e.g. drag-and-drop).
+    func newTab(directory: URL, in existingWindow: NSWindow? = nil) async {
+        let controller = TabWindowController()
+        windowControllers.append(controller)
+
+        if let existingWindow {
+            existingWindow.addTabbedWindow(controller.window!, ordered: .above)
+            controller.window?.makeKeyAndOrderFront(nil)
+        } else {
+            if windowControllers.count == 1 {
+                controller.window?.center()
+            }
+            controller.showWindow(nil)
+        }
+
+        // Auto-launch with the given directory
+        await controller.launchClaude(directory: directory, options: ClaudeCodeOptions())
+    }
+
+    /// Closes a tab and kills its tmux session.
+    func closeTab(_ controller: TabWindowController) async {
+        if controller.session.isRunning {
+            do {
+                try await TmuxManager.shared.killSession(
+                    name: controller.session.tmuxSessionName
+                )
+            } catch {
+                logger.warning(
+                    "Failed to kill tmux session \(controller.session.tmuxSessionName): \(error.localizedDescription)"
+                )
+            }
+        }
+
+        controller.window?.close()
+    }
+
+    // MARK: - Session Reattachment
+
+    func reattachOrphanedSessions() async {
+        let existingNames = await TmuxManager.shared.listSessylphSessions()
+        let trackedNames = Set(windowControllers.map(\.session.tmuxSessionName))
+
+        for name in existingNames where !trackedNames.contains(name) {
+            logger.info("Reattaching orphaned tmux session: \(name)")
+
+            var session = Session(
+                directory: URL(fileURLWithPath: NSHomeDirectory())
+            )
+            session.tmuxSessionName = name
+            session.title = name
+            session.isRunning = true
+
+            let controller = TabWindowController(session: session)
+            windowControllers.append(controller)
+
+            if let first = windowControllers.first, first !== controller,
+               let existingWindow = first.window
+            {
+                existingWindow.addTabbedWindow(controller.window!, ordered: .above)
+                controller.window?.makeKeyAndOrderFront(nil)
+            } else {
+                controller.window?.center()
+                controller.showWindow(nil)
+            }
+        }
+    }
+
+    // MARK: - Navigation
+
+    func bringToFront(sessionId: UUID) {
+        guard let controller = windowControllers.first(where: { $0.session.id == sessionId }) else {
+            logger.warning("No tab found for session \(sessionId)")
+            return
+        }
+        controller.window?.makeKeyAndOrderFront(nil)
+        controller.window?.tabGroup?.selectedWindow = controller.window
+    }
+
+    // MARK: - Bookkeeping
+
+    func windowControllerDidClose(_ controller: TabWindowController) {
+        windowControllers.removeAll { $0 === controller }
+        logger.info("Tab closed (\(self.windowControllers.count) remaining)")
+    }
+}
