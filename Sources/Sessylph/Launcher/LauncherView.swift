@@ -30,7 +30,7 @@ struct LauncherView: View {
             launchButton
                 .padding(.bottom, 28)
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 900, minHeight: 600)
         .onAppear {
             recentDirectories = RecentDirectories.load()
         }

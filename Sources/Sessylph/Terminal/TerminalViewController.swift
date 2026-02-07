@@ -46,9 +46,12 @@ final class TerminalViewController: NSViewController {
         view.addSubview(terminalView)
 
         // Appearance
-        terminalView.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        terminalView.nativeBackgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1.0)
-        terminalView.nativeForegroundColor = NSColor(red: 0.9, green: 0.9, blue: 0.9, alpha: 1.0)
+        let fontSize = CGFloat(UserDefaults.standard.double(forKey: Defaults.terminalFontSize))
+        let fontName = UserDefaults.standard.string(forKey: Defaults.terminalFontName) ?? "SF Mono"
+        terminalView.font = NSFont(name: fontName, size: fontSize)
+            ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        terminalView.nativeBackgroundColor = .white
+        terminalView.nativeForegroundColor = .black
 
         // TODO: Detect bell sequences (\a) for notification fallback
         //       when the active session is not visible.
