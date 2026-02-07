@@ -1,0 +1,60 @@
+name: Sessylph
+options:
+  bundleIdPrefix: sh.saqoo
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    from: "1.0.0"
+
+targets:
+  Sessylph:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Sessylph
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: SwiftTerm
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.saqoo.Sessylph
+        PRODUCT_NAME: Sessylph
+        INFOPLIST_FILE: Sources/Sessylph/App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Sessylph.entitlements
+        DEVELOPMENT_TEAM: G5G54TCH8W
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: Sources/Sessylph/App/Info.plist
+      properties:
+        CFBundleName: Sessylph
+        CFBundleDisplayName: Sessylph
+        CFBundleIdentifier: sh.saqoo.Sessylph
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.1.0"
+        CFBundlePackageType: APPL
+        CFBundleExecutable: Sessylph
+        LSMinimumSystemVersion: "15.0"
+        NSHumanReadableCopyright: "Copyright © 2026 Saqoosha. All rights reserved."
+
+  SessylphNotifier:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources/SessylphNotifier
+    settings:
+      base:
+        PRODUCT_NAME: sessylph-notifier
+        SWIFT_VERSION: "6.0"
