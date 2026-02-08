@@ -7,6 +7,8 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.notifyOnStop) private var notifyOnStop = true
     @AppStorage(Defaults.notifyOnPermission) private var notifyOnPermission = true
     @AppStorage(Defaults.terminalFontSize) private var terminalFontSize = 13.0
+    @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
+    @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
 
     private let models = ["", "sonnet", "opus", "haiku"]
     private let permissionModes = ["", "default", "plan", "acceptEdits", "bypassPermissions"]
@@ -49,6 +51,17 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Confirmations") {
+                Toggle("Confirm before closing a running tab", isOn: Binding(
+                    get: { !suppressCloseTabAlert },
+                    set: { suppressCloseTabAlert = !$0 }
+                ))
+                Toggle("Confirm before quitting with active sessions", isOn: Binding(
+                    get: { !suppressQuitAlert },
+                    set: { suppressQuitAlert = !$0 }
+                ))
+            }
+
             Section("Info") {
                 if let version = ClaudeCLI.claudeVersion() {
                     LabeledContent("Claude Code", value: version)
@@ -59,6 +72,7 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollDisabled(true)
         .frame(minWidth: 450)
     }
 }

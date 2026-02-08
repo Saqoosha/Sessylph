@@ -38,11 +38,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Save sessions BEFORE windows close so the store isn't emptied
-        // by windowControllerDidClose removing each session individually.
-        TabManager.shared.isTerminating = true
-        SessionStore.shared.save()
-        return .terminateNow
+        let runningCount = TabManager.shared.windowControllers.filter({ $0.session.isRunning }).count
+
+        if runningCount == 0 || UserDefaults.standard.bool(forKey: Defaults.suppressQuitAlert) {
+            TabManager.shared.isTerminating = true
+            SessionStore.shared.save()
+            return .terminateNow
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Quit Sessylph?"
+        let sessionWord = runningCount == 1 ? "session" : "sessions"
+        alert.informativeText = "\(runningCount) active \(sessionWord) will remain running and be restored on next launch."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
+        alert.showsSuppressionButton = true
+
+        let response = alert.runModal()
+
+        if alert.suppressionButton?.state == .on {
+            UserDefaults.standard.set(true, forKey: Defaults.suppressQuitAlert)
+        }
+
+        if response == .alertFirstButtonReturn {
+            TabManager.shared.isTerminating = true
+            SessionStore.shared.save()
+            return .terminateNow
+        }
+        return .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -135,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let keyWindow = NSApp.keyWindow,
               let controller = TabManager.shared.windowControllers.first(where: { $0.window === keyWindow })
         else { return }
-        Task { await TabManager.shared.closeTab(controller) }
+        TabManager.shared.closeTab(controller)
     }
 
     @objc private func showSettings(_ sender: Any?) {

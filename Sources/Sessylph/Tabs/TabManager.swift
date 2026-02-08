@@ -62,21 +62,9 @@ final class TabManager {
         await controller.launchClaude(directory: directory, options: ClaudeCodeOptions())
     }
 
-    /// Closes a tab and kills its tmux session.
-    func closeTab(_ controller: TabWindowController) async {
-        if controller.session.isRunning {
-            do {
-                try await TmuxManager.shared.killSession(
-                    name: controller.session.tmuxSessionName
-                )
-            } catch {
-                logger.warning(
-                    "Failed to kill tmux session \(controller.session.tmuxSessionName): \(error.localizedDescription)"
-                )
-            }
-        }
-
-        controller.window?.close()
+    /// Closes a tab, showing a confirmation alert if a session is running.
+    func closeTab(_ controller: TabWindowController) {
+        controller.window?.performClose(nil)
     }
 
     // MARK: - Session Reattachment
