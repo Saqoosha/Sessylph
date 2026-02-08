@@ -40,7 +40,7 @@ sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"${NEW_BU
 echo "=== Building and packaging DMG ==="
 "${ROOT_DIR}/scripts/package_dmg.sh"
 
-DMG_PATH="${BUILD_DIR}/Sessylph.dmg"
+DMG_PATH="${BUILD_DIR}/Sessylph-${VERSION}.dmg"
 
 if [[ ! -f "$DMG_PATH" ]]; then
   echo "Error: DMG not found at $DMG_PATH"
