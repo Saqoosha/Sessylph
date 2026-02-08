@@ -52,7 +52,7 @@ jj describe -m "Release ${VERSION}
 
 - Bump version to ${VERSION} (build ${NEW_BUILD})
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude ${MODEL_NAME:-Opus 4.6} <noreply@anthropic.com>"
 
 # Move main bookmark to current commit and push
 jj bookmark set main -r @

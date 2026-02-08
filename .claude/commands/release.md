@@ -35,8 +35,10 @@ Examples:
 ### 3. Run release script with determined version
 
 ```bash
-./scripts/release.sh <new_version>
+MODEL_NAME="<your model name>" ./scripts/release.sh <new_version>
 ```
+
+Set `MODEL_NAME` to your actual model name (e.g., "Opus 4.6", "Sonnet 4.5") for the Co-Authored-By line in the commit message.
 
 This builds, notarizes, creates DMG, commits, tags, and creates GitHub Release.
 
