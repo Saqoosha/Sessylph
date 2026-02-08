@@ -51,6 +51,12 @@ final class TmuxManager: Sendable {
         try? await runTmux(args: [
             "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
         ])
+        // Use the latest active client's size (not the smallest), so when
+        // multiple clients (e.g. Warp + Sessylph) share a session, switching
+        // between them resizes the window to match the active terminal.
+        try? await runTmux(args: [
+            "set-option", "-g", "window-size", "latest",
+        ])
         // Scroll 1 line per mouse wheel event (default is 5)
         for table in ["copy-mode", "copy-mode-vi"] {
             try? await runTmux(args: [

@@ -426,6 +426,33 @@ final class TerminalViewController: NSViewController {
         return (max(1, cellWidth), max(1, cellHeight))
     }
 
+    // MARK: - Terminal Size
+
+    /// Returns the current terminal grid dimensions.
+    var terminalSize: (cols: Int, rows: Int) {
+        let terminal = terminalView.getTerminal()
+        return (terminal.cols, terminal.rows)
+    }
+
+    /// Re-sends the current terminal size to the pty so tmux picks up
+    /// this client's dimensions (e.g. after switching from another terminal).
+    /// Sends a bumped size first because macOS may suppress SIGWINCH when
+    /// the size hasn't actually changed.
+    func refreshPtySize() {
+        guard terminalView.process.running else { return }
+        let fd = terminalView.process.childfd
+        // First: send a 1-row-larger size to guarantee a real change
+        var bumped = terminalView.getWindowSize()
+        bumped.ws_row += 1
+        _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &bumped)
+        // Then: restore the real size on the next run-loop cycle
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.terminalView.process.running else { return }
+            var real = self.terminalView.getWindowSize()
+            _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &real)
+        }
+    }
+
     // MARK: - Process
 
     private func startTmuxAttach() {

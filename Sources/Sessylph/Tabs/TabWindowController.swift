@@ -334,6 +334,14 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         return false
     }
 
+    func windowDidBecomeKey(_ notification: Notification) {
+        if TabManager.shared.needsPtyRefresh {
+            TabManager.shared.needsPtyRefresh = false
+            guard session.isRunning, let terminalVC else { return }
+            terminalVC.refreshPtySize()
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
         stopTitlePolling()
 

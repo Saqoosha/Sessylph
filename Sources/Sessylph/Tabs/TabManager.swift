@@ -19,6 +19,10 @@ final class TabManager {
     /// for reattachment on next launch).
     var isTerminating = false
 
+    /// Set to `true` when the app becomes active (from background).
+    /// Consumed by `windowDidBecomeKey` to refresh the pty size once.
+    var needsPtyRefresh = false
+
     private init() {}
 
     // MARK: - Tab Lifecycle
