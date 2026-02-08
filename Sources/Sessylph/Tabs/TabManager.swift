@@ -31,9 +31,6 @@ final class TabManager {
             existingWindow.addTabbedWindow(newWindow, ordered: .above)
             newWindow.makeKeyAndOrderFront(nil)
         } else {
-            if windowControllers.count == 1 {
-                controller.window?.center()
-            }
             controller.showWindow(nil)
         }
 
@@ -53,9 +50,6 @@ final class TabManager {
             existingWindow.addTabbedWindow(newWindow, ordered: .above)
             newWindow.makeKeyAndOrderFront(nil)
         } else {
-            if windowControllers.count == 1 {
-                controller.window?.center()
-            }
             controller.showWindow(nil)
         }
 
@@ -111,7 +105,6 @@ final class TabManager {
                 existingWindow.addTabbedWindow(newWindow, ordered: .above)
                 newWindow.makeKeyAndOrderFront(nil)
             } else {
-                controller.window?.center()
                 controller.showWindow(nil)
             }
         }
