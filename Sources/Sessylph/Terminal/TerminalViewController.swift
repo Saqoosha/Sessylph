@@ -26,6 +26,8 @@ final class TerminalViewController: NSViewController {
     nonisolated(unsafe) private var mouseUpMonitor: Any?
     nonisolated(unsafe) private var mouseMovedMonitor: Any?
     nonisolated(unsafe) private var scrollWheelMonitor: Any?
+    nonisolated(unsafe) private var mouseDragMonitor: Any?
+    private var didDragSelection = false
     private var isOverURL = false
     private var urlUnderlineLayer: CALayer?
 
@@ -81,7 +83,7 @@ final class TerminalViewController: NSViewController {
         // scrollWheel is independent and continues to work.
         terminalView.allowMouseReporting = false
 
-        installShiftEnterMonitor()
+        installKeyEventMonitor()
         installMouseMonitors()
         installScrollWheelMonitor()
 
@@ -115,17 +117,34 @@ final class TerminalViewController: NSViewController {
         if let scrollWheelMonitor {
             NSEvent.removeMonitor(scrollWheelMonitor)
         }
+        if let mouseDragMonitor {
+            NSEvent.removeMonitor(mouseDragMonitor)
+        }
     }
 
-    // MARK: - Shift+Enter → newline
+    // MARK: - Key Event Monitor (Shift+Enter → newline, Cmd+V → image paste)
 
-    /// Intercepts Shift+Enter before SwiftTerm's keyDown handler and sends
-    /// LF (0x0A) so Claude Code inserts a newline instead of submitting.
-    private func installShiftEnterMonitor() {
+    private func installKeyEventMonitor() {
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // Extract Sendable values before crossing into MainActor
-            guard event.keyCode == 36 /* Return */ else { return event }
+            let keyCode = event.keyCode
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+            // --- Cmd+V: Image paste (intercept before SwiftTerm's text-only paste) ---
+            if keyCode == 9 /* V */, flags == .command {
+                guard let eventWindow = event.window else { return event }
+                let windowID = ObjectIdentifier(eventWindow)
+
+                let handled = MainActor.assumeIsolated { () -> Bool in
+                    guard let self,
+                          let myWindow = self.view.window,
+                          ObjectIdentifier(myWindow) == windowID else { return false }
+                    return self.handleImagePaste()
+                }
+                return handled ? nil : event
+            }
+
+            // --- Shift+Enter: newline ---
+            guard keyCode == 36 /* Return */ else { return event }
             guard flags.contains(.shift),
                   !flags.contains(.command),
                   !flags.contains(.control),
@@ -147,9 +166,47 @@ final class TerminalViewController: NSViewController {
         }
     }
 
+    /// If the pasteboard contains an image, sends its file path to the terminal.
+    /// Returns `true` if an image was handled, `false` to fall through to normal text paste.
+    private func handleImagePaste() -> Bool {
+        guard let path = ImagePasteHelper.imagePathFromPasteboard() else {
+            return false
+        }
+
+        // Bracketed paste: ESC [ 200 ~ ... ESC [ 201 ~
+        // Using raw bytes instead of EscapeSequences.bracketedPasteStart/End
+        // because those are static vars (not concurrency-safe in Swift 6).
+        let bracketedPaste = terminalView.terminal.bracketedPasteMode
+        if bracketedPaste {
+            terminalView.send(data: ArraySlice<UInt8>([0x1b, 0x5b, 0x32, 0x30, 0x30, 0x7e]))
+        }
+        terminalView.send(txt: path)
+        if bracketedPaste {
+            terminalView.send(data: ArraySlice<UInt8>([0x1b, 0x5b, 0x32, 0x30, 0x31, 0x7e]))
+        }
+
+        return true
+    }
+
     // MARK: - Mouse Handling (Auto-copy & URL Click)
 
     private func installMouseMonitors() {
+        // Track mouse drag to distinguish drag-selection from simple clicks.
+        // Without this, clicking the window to activate it would auto-copy
+        // the previous selection, overwriting clipboard contents (e.g. images).
+        mouseDragMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
+            guard let eventWindow = event.window else { return event }
+            let windowID = ObjectIdentifier(eventWindow)
+
+            MainActor.assumeIsolated {
+                guard let self,
+                      let myWindow = self.view.window,
+                      ObjectIdentifier(myWindow) == windowID else { return }
+                self.didDragSelection = true
+            }
+            return event
+        }
+
         // Auto-copy selection on mouse release & URL click detection
         mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
             guard let eventWindow = event.window else { return event }
@@ -160,15 +217,17 @@ final class TerminalViewController: NSViewController {
                       let myWindow = self.view.window,
                       ObjectIdentifier(myWindow) == windowID else { return }
 
-                if self.terminalView.selectionActive {
-                    // Auto-copy selection to clipboard (Warp-style)
+                if self.terminalView.selectionActive, self.didDragSelection {
+                    // Auto-copy selection to clipboard (Warp-style),
+                    // but only if user actually dragged to create/extend the selection.
                     self.terminalView.copy(self)
-                } else if event.clickCount == 1 {
+                } else if event.clickCount == 1, !self.terminalView.selectionActive {
                     // Single click with no selection → check for URL
                     if let url = self.detectURL(at: event) {
                         NSWorkspace.shared.open(url)
                     }
                 }
+                self.didDragSelection = false
             }
             return event
         }
