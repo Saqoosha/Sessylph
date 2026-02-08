@@ -132,6 +132,8 @@ final class TabManager {
         for saved in savedSessions where !existingSet.contains(saved.tmuxSessionName) {
             SessionStore.shared.remove(id: saved.id)
         }
+
+        restoreActiveTab()
     }
 
     // MARK: - Navigation
@@ -163,6 +165,26 @@ final class TabManager {
         // Fallback: derive tmux session name from UUID and match
         let tmuxName = TmuxManager.sessionName(for: sessionId)
         return windowControllers.first(where: { $0.session.tmuxSessionName == tmuxName })
+    }
+
+    // MARK: - Active Tab Persistence
+
+    /// Saves the currently active tab's tmux session name so it can be restored on next launch.
+    func saveActiveSessionId() {
+        guard let keyWindow = NSApp.keyWindow,
+              let controller = windowControllers.first(where: { $0.window === keyWindow })
+        else { return }
+        UserDefaults.standard.set(controller.session.tmuxSessionName, forKey: Defaults.activeSessionId)
+    }
+
+    /// Restores the previously active tab after session reattachment.
+    func restoreActiveTab() {
+        guard let savedName = UserDefaults.standard.string(forKey: Defaults.activeSessionId),
+              let controller = windowControllers.first(where: { $0.session.tmuxSessionName == savedName }),
+              let window = controller.window
+        else { return }
+        window.tabGroup?.selectedWindow = window
+        window.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Bookkeeping

@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Save active tab before alert steals key window
+        TabManager.shared.saveActiveSessionId()
+
         let runningCount = TabManager.shared.windowControllers.filter({ $0.session.isRunning }).count
 
         if runningCount == 0 || UserDefaults.standard.bool(forKey: Defaults.suppressQuitAlert) {

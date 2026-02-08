@@ -30,6 +30,7 @@ enum Defaults {
     // MARK: - Sessions
     static let savedSessions = "savedSessions"
     static let recentDirectories = "recentDirectories"
+    static let activeSessionId = "activeSessionId"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
