@@ -119,12 +119,28 @@ final class TabManager {
     // MARK: - Navigation
 
     func bringToFront(sessionId: UUID) {
-        guard let controller = windowControllers.first(where: { $0.session.id == sessionId }) else {
+        guard let controller = findController(for: sessionId),
+              let window = controller.window
+        else {
             logger.warning("No tab found for session \(sessionId)")
             return
         }
-        controller.window?.makeKeyAndOrderFront(nil)
-        controller.window?.tabGroup?.selectedWindow = controller.window
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.tabGroup?.selectedWindow = window
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Finds a controller by session UUID, falling back to tmux session name match
+    /// for reattached sessions whose UUID may differ from the hook settings.
+    func findController(for sessionId: UUID) -> TabWindowController? {
+        // Exact UUID match
+        if let controller = windowControllers.first(where: { $0.session.id == sessionId }) {
+            return controller
+        }
+        // Fallback: derive tmux session name from UUID and match
+        let tmuxName = "\(TmuxManager.sessionPrefix)-\(sessionId.uuidString.prefix(8).lowercased())"
+        return windowControllers.first(where: { $0.session.tmuxSessionName == tmuxName })
     }
 
     // MARK: - Bookkeeping
@@ -132,6 +148,7 @@ final class TabManager {
     func windowControllerDidClose(_ controller: TabWindowController) {
         windowControllers.removeAll { $0 === controller }
         SessionStore.shared.remove(id: controller.session.id)
+        HookSettingsGenerator.cleanup(sessionId: controller.session.id.uuidString)
         logger.info("Tab closed (\(self.windowControllers.count) remaining)")
     }
 }

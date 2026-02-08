@@ -139,7 +139,20 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             await TmuxManager.shared.configureSession(name: session.tmuxSessionName)
 
             let claudePath = try ClaudeCLI.claudePath()
-            let command = session.options.buildCommand(claudePath: claudePath)
+
+            var hookSettingsPath: String? = nil
+            if let notifierPath = HookSettingsGenerator.notifierPath() {
+                let hooksURL = try HookSettingsGenerator.generate(
+                    sessionId: session.id.uuidString,
+                    notifierPath: notifierPath
+                )
+                hookSettingsPath = hooksURL.path
+            }
+
+            let command = session.options.buildCommand(
+                claudePath: claudePath,
+                hookSettingsPath: hookSettingsPath
+            )
 
             try await TmuxManager.shared.launchClaude(
                 sessionName: session.tmuxSessionName,

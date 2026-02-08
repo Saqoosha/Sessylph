@@ -16,7 +16,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func requestPermission() async {
         do {
             let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .sound, .badge])
+                .requestAuthorization(options: [.alert, .sound, .badge, .provisional])
             logger.info("Notification permission: \(granted ? "granted" : "denied")")
         } catch {
             logger.error("Notification permission request failed: \(error.localizedDescription)")
@@ -25,10 +25,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     func postTaskCompleted(sessionTitle: String, sessionId: String) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnStop) else { return }
-        guard !NSApp.isActive else { return }
+        guard !isSessionFrontmost(sessionId: sessionId) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Task Completed"
+        content.title = "✅ Task Completed"
         content.body = sessionTitle
         content.sound = .default
         content.userInfo = ["sessionId": sessionId]
@@ -48,10 +48,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     func postNeedsAttention(sessionTitle: String, sessionId: String, message: String) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
-        guard !NSApp.isActive else { return }
+        guard !isSessionFrontmost(sessionId: sessionId) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Needs Attention"
+        content.title = "⚠️ Needs Attention"
         content.body = "\(sessionTitle): \(message)"
         content.sound = .default
         content.userInfo = ["sessionId": sessionId]
@@ -69,6 +69,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    // MARK: - Private
+
+    private func isSessionFrontmost(sessionId: String) -> Bool {
+        guard NSApp.isActive,
+              let uuid = UUID(uuidString: sessionId),
+              let controller = TabManager.shared.findController(for: uuid)
+        else { return false }
+        return controller.window?.isKeyWindow == true
+    }
+
     // MARK: - UNUserNotificationCenterDelegate
 
     nonisolated func userNotificationCenter(
@@ -81,7 +91,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
            let uuid = UUID(uuidString: sessionId)
         {
             Task { @MainActor in
-                NSApp.activate(ignoringOtherApps: true)
                 TabManager.shared.bringToFront(sessionId: uuid)
             }
         }
