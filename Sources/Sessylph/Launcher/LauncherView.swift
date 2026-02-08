@@ -11,7 +11,6 @@ struct LauncherView: View {
     @State private var selectedDirectory: URL?
     @State private var recentDirectories: [URL] = []
     @State private var hoveredDirectory: URL?
-    @State private var optionsExpanded = false
 
     var onLaunch: ((URL, ClaudeCodeOptions) -> Void)?
 
@@ -171,49 +170,46 @@ struct LauncherView: View {
     // MARK: - Options Section
 
     private var optionsSection: some View {
-        DisclosureGroup(isExpanded: $optionsExpanded) {
-            VStack(spacing: 12) {
-                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-                    GridRow {
-                        Text("Model:")
-                            .foregroundStyle(.secondary)
-                            .gridColumnAlignment(.trailing)
-                        Picker("", selection: $model) {
-                            Text("Default").tag("")
-                            Text("claude-sonnet-4-5-20250929").tag("claude-sonnet-4-5-20250929")
-                            Text("claude-opus-4-6").tag("claude-opus-4-6")
-                            Text("claude-haiku-4-5-20251001").tag("claude-haiku-4-5-20251001")
-                        }
-                        .labelsHidden()
-                        .frame(width: 280)
-                    }
-
-                    GridRow {
-                        Text("Permission:")
-                            .foregroundStyle(.secondary)
-                            .gridColumnAlignment(.trailing)
-                        Picker("", selection: $permissionMode) {
-                            Text("Default").tag("")
-                            Text("Plan mode").tag("plan")
-                            Text("Auto-accept edits").tag("auto-edit")
-                            Text("Full auto").tag("full-auto")
-                        }
-                        .labelsHidden()
-                        .frame(width: 280)
-                    }
-                }
-
-                HStack(spacing: 16) {
-                    Toggle("Skip permissions", isOn: $skipPermissions)
-                    Toggle("Continue session", isOn: $continueSession)
-                    Toggle("Verbose", isOn: $verbose)
-                }
-                .toggleStyle(.checkbox)
-            }
-            .padding(.top, 8)
-        } label: {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Options")
                 .font(.headline)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Model:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $model) {
+                        Text("Default").tag("")
+                        Text("claude-sonnet-4-5-20250929").tag("claude-sonnet-4-5-20250929")
+                        Text("claude-opus-4-6").tag("claude-opus-4-6")
+                        Text("claude-haiku-4-5-20251001").tag("claude-haiku-4-5-20251001")
+                    }
+                    .labelsHidden()
+                    .frame(width: 280)
+                }
+
+                GridRow {
+                    Text("Permission:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $permissionMode) {
+                        Text("Default").tag("")
+                        Text("Plan mode").tag("plan")
+                        Text("Auto-accept edits").tag("auto-edit")
+                        Text("Full auto").tag("full-auto")
+                    }
+                    .labelsHidden()
+                    .frame(width: 280)
+                }
+            }
+
+            HStack(spacing: 16) {
+                Toggle("Skip permissions", isOn: $skipPermissions)
+                Toggle("Continue session", isOn: $continueSession)
+                Toggle("Verbose", isOn: $verbose)
+            }
+            .toggleStyle(.checkbox)
         }
     }
 
