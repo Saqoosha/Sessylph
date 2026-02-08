@@ -51,6 +51,15 @@ final class TmuxManager: Sendable {
         try? await runTmux(args: [
             "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
         ])
+        // Scroll 1 line per mouse wheel event (default is 5)
+        for table in ["copy-mode", "copy-mode-vi"] {
+            try? await runTmux(args: [
+                "bind-key", "-T", table, "WheelUpPane", "send-keys", "-X", "scroll-up",
+            ])
+            try? await runTmux(args: [
+                "bind-key", "-T", table, "WheelDownPane", "send-keys", "-X", "scroll-down",
+            ])
+        }
     }
 
     /// Configures a tmux session for title passthrough so terminal title
@@ -67,6 +76,10 @@ final class TmuxManager: Sendable {
         // Allow passthrough of escape sequences (tmux 3.3+, ignore if unsupported)
         try? await runTmux(args: [
             "set-option", "-t", name, "allow-passthrough", "on",
+        ])
+        // Enable mouse support so scroll wheel events are handled by tmux
+        try? await runTmux(args: [
+            "set-option", "-t", name, "mouse", "on",
         ])
     }
 
