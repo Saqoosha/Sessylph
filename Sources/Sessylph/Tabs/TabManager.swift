@@ -24,8 +24,12 @@ final class TabManager {
         windowControllers.append(controller)
 
         if let existingWindow {
-            existingWindow.addTabbedWindow(controller.window!, ordered: .above)
-            controller.window?.makeKeyAndOrderFront(nil)
+            guard let newWindow = controller.window else {
+                logger.error("New tab has no window")
+                return
+            }
+            existingWindow.addTabbedWindow(newWindow, ordered: .above)
+            newWindow.makeKeyAndOrderFront(nil)
         } else {
             if windowControllers.count == 1 {
                 controller.window?.center()
@@ -42,8 +46,12 @@ final class TabManager {
         windowControllers.append(controller)
 
         if let existingWindow {
-            existingWindow.addTabbedWindow(controller.window!, ordered: .above)
-            controller.window?.makeKeyAndOrderFront(nil)
+            guard let newWindow = controller.window else {
+                logger.error("New tab (directory) has no window")
+                return
+            }
+            existingWindow.addTabbedWindow(newWindow, ordered: .above)
+            newWindow.makeKeyAndOrderFront(nil)
         } else {
             if windowControllers.count == 1 {
                 controller.window?.center()
@@ -97,10 +105,11 @@ final class TabManager {
             windowControllers.append(controller)
 
             if let first = windowControllers.first, first !== controller,
-               let existingWindow = first.window
+               let existingWindow = first.window,
+               let newWindow = controller.window
             {
-                existingWindow.addTabbedWindow(controller.window!, ordered: .above)
-                controller.window?.makeKeyAndOrderFront(nil)
+                existingWindow.addTabbedWindow(newWindow, ordered: .above)
+                newWindow.makeKeyAndOrderFront(nil)
             } else {
                 controller.window?.center()
                 controller.showWindow(nil)

@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "TmuxManager")
 
 final class TmuxManager: Sendable {
     static let shared = TmuxManager()
@@ -30,6 +33,23 @@ final class TmuxManager: Sendable {
         ])
     }
 
+    /// Configures a tmux session for title passthrough so terminal title
+    /// escape sequences from Claude Code reach the outer terminal (SwiftTerm).
+    /// Best-effort: failures are logged but don't block session launch.
+    func configureSession(name: String) async {
+        // Allow the inner process to set the outer terminal's title
+        try? await runTmux(args: [
+            "set-option", "-t", name, "set-titles", "on",
+        ])
+        try? await runTmux(args: [
+            "set-option", "-t", name, "set-titles-string", "#{pane_title}",
+        ])
+        // Allow passthrough of escape sequences (tmux 3.3+, ignore if unsupported)
+        try? await runTmux(args: [
+            "set-option", "-t", name, "allow-passthrough", "on",
+        ])
+    }
+
     /// Sends keys to launch claude in the session.
     /// `tmux send-keys -t {name} 'command' Enter`
     func launchClaude(sessionName: String, command: String) async throws {
@@ -54,6 +74,7 @@ final class TmuxManager: Sendable {
             _ = try await runTmux(args: ["has-session", "-t", name])
             return true
         } catch {
+            logger.debug("Session \(name) does not exist (or tmux error): \(error.localizedDescription)")
             return false
         }
     }
@@ -69,6 +90,7 @@ final class TmuxManager: Sendable {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { $0.hasPrefix(Self.sessionPrefix + "-") }
         } catch {
+            logger.warning("Failed to list tmux sessions: \(error.localizedDescription)")
             return []
         }
     }
@@ -80,19 +102,31 @@ final class TmuxManager: Sendable {
         let environment = EnvironmentBuilder.loginEnvironmentDict()
 
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: tmuxPath)
-            process.arguments = args
-            process.environment = environment
+            DispatchQueue.global().async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: tmuxPath)
+                process.arguments = args
+                process.environment = environment
 
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
 
-            process.terminationHandler = { @Sendable _ in
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                // Read pipe data BEFORE waitUntilExit to avoid deadlock:
+                // if the process fills the pipe buffer, it blocks waiting for
+                // a reader; reading in terminationHandler would never start.
                 let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
                 let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+                process.waitUntilExit()
 
                 if process.terminationStatus != 0 {
                     let stderrString = String(data: stderrData, encoding: .utf8) ?? ""
@@ -113,12 +147,6 @@ final class TmuxManager: Sendable {
                 continuation.resume(
                     returning: output.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
-            }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
             }
         }
     }

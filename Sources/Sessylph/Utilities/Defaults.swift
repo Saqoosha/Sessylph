@@ -16,6 +16,13 @@ enum Defaults {
     static let notifyOnStop = "notifyOnStop"
     static let notifyOnPermission = "notifyOnPermission"
 
+    // MARK: - Launcher Options
+    static let launcherModel = "launcherModel"
+    static let launcherPermissionMode = "launcherPermissionMode"
+    static let launcherSkipPermissions = "launcherSkipPermissions"
+    static let launcherContinueSession = "launcherContinueSession"
+    static let launcherVerbose = "launcherVerbose"
+
     // MARK: - Sessions
     static let savedSessions = "savedSessions"
     static let recentDirectories = "recentDirectories"

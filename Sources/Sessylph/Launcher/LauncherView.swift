@@ -1,166 +1,235 @@
 import SwiftUI
 
 struct LauncherView: View {
+    // Persisted launcher options
+    @AppStorage(Defaults.launcherModel) private var model = ""
+    @AppStorage(Defaults.launcherPermissionMode) private var permissionMode = ""
+    @AppStorage(Defaults.launcherSkipPermissions) private var skipPermissions = false
+    @AppStorage(Defaults.launcherContinueSession) private var continueSession = false
+    @AppStorage(Defaults.launcherVerbose) private var verbose = false
+
     @State private var selectedDirectory: URL?
-    @State private var options = ClaudeCodeOptions()
     @State private var recentDirectories: [URL] = []
+    @State private var hoveredDirectory: URL?
+    @State private var optionsExpanded = false
 
     var onLaunch: ((URL, ClaudeCodeOptions) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
-            // Folder section
-            folderSection
-                .padding(.horizontal, 32)
-                .padding(.top, 28)
+            ScrollView {
+                VStack(spacing: 28) {
+                    header
+                    directoryCard
+                    if !recentDirectories.isEmpty {
+                        recentSection
+                    }
+                    optionsSection
+                }
+                .padding(.horizontal, 36)
+                .padding(.top, 36)
                 .padding(.bottom, 20)
+            }
 
             Divider()
-                .padding(.horizontal, 24)
 
-            // Options section
-            optionsSection
-                .padding(.horizontal, 32)
-                .padding(.top, 20)
-                .padding(.bottom, 24)
-
-            Spacer()
-
-            // Launch button
-            launchButton
-                .padding(.bottom, 28)
+            // Footer
+            HStack {
+                Spacer()
+                Button {
+                    launch()
+                } label: {
+                    Label("Start Claude", systemImage: "play.fill")
+                        .frame(width: 140)
+                }
+                .controlSize(.large)
+                .keyboardShortcut(.return, modifiers: [])
+                .disabled(selectedDirectory == nil)
+                Spacer()
+            }
+            .padding(.vertical, 16)
         }
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             recentDirectories = RecentDirectories.load()
         }
     }
 
-    // MARK: - Folder Section
+    // MARK: - Header
 
-    private var folderSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var header: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "terminal.fill")
+                .font(.system(size: 36))
+                .foregroundStyle(.secondary)
+            Text("Sessylph")
+                .font(.title.bold())
+            Text("Start a new Claude Code session")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 4)
+    }
+
+    // MARK: - Directory Card
+
+    private var directoryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Working Directory")
                 .font(.headline)
 
-            HStack {
+            HStack(spacing: 10) {
+                Image(systemName: "folder.fill")
+                    .font(.title3)
+                    .foregroundStyle(selectedDirectory != nil ? .orange : .secondary)
+
                 if let dir = selectedDirectory {
-                    Image(systemName: "folder.fill")
-                        .foregroundStyle(.secondary)
                     Text(dir.abbreviatingWithTildeInPath)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .foregroundStyle(.primary)
                 } else {
                     Text("No folder selected")
                         .foregroundStyle(.tertiary)
                 }
+
                 Spacer()
-                Button("Choose...") {
+
+                Button("Browse...") {
                     chooseFolder()
                 }
             }
-            .padding(10)
-            .background(.quaternary.opacity(0.5))
-            .cornerRadius(8)
+            .padding(12)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
 
-            if !recentDirectories.isEmpty {
-                Text("Recent")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    // MARK: - Recent Directories
 
-                VStack(spacing: 2) {
-                    ForEach(recentDirectories.prefix(8), id: \.path) { dir in
-                        Button {
-                            selectedDirectory = dir
-                        } label: {
-                            HStack {
-                                Image(systemName: "folder")
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 16)
-                                Text(dir.abbreviatingWithTildeInPath)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .background(
-                            selectedDirectory == dir
-                                ? Color.accentColor.opacity(0.15)
-                                : Color.clear
-                        )
-                        .cornerRadius(4)
-                    }
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recents")
+                .font(.headline)
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 160, maximum: 240), spacing: 8)],
+                spacing: 8
+            ) {
+                ForEach(recentDirectories.prefix(8), id: \.path) { dir in
+                    recentCard(dir)
                 }
             }
+        }
+    }
+
+    private func recentCard(_ dir: URL) -> some View {
+        let isSelected = selectedDirectory == dir
+        let isHovered = hoveredDirectory == dir
+        return Button {
+            selectedDirectory = dir
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(.orange.opacity(0.8))
+                    .font(.callout)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(dir.lastPathComponent)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    Text(dir.deletingLastPathComponent().abbreviatingWithTildeInPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected
+                    ? Color.accentColor.opacity(0.15)
+                    : isHovered ? Color.primary.opacity(0.04) : Color.clear
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(
+                        isSelected ? Color.accentColor.opacity(0.4) : Color.primary.opacity(0.08),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered in
+            hoveredDirectory = isHovered ? dir : nil
         }
     }
 
     // MARK: - Options Section
 
     private var optionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        DisclosureGroup(isExpanded: $optionsExpanded) {
+            VStack(spacing: 12) {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                    GridRow {
+                        Text("Model:")
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.trailing)
+                        Picker("", selection: $model) {
+                            Text("Default").tag("")
+                            Text("claude-sonnet-4-5-20250929").tag("claude-sonnet-4-5-20250929")
+                            Text("claude-opus-4-6").tag("claude-opus-4-6")
+                            Text("claude-haiku-4-5-20251001").tag("claude-haiku-4-5-20251001")
+                        }
+                        .labelsHidden()
+                        .frame(width: 280)
+                    }
+
+                    GridRow {
+                        Text("Permission:")
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.trailing)
+                        Picker("", selection: $permissionMode) {
+                            Text("Default").tag("")
+                            Text("Plan mode").tag("plan")
+                            Text("Auto-accept edits").tag("auto-edit")
+                            Text("Full auto").tag("full-auto")
+                        }
+                        .labelsHidden()
+                        .frame(width: 280)
+                    }
+                }
+
+                HStack(spacing: 16) {
+                    Toggle("Skip permissions", isOn: $skipPermissions)
+                    Toggle("Continue session", isOn: $continueSession)
+                    Toggle("Verbose", isOn: $verbose)
+                }
+                .toggleStyle(.checkbox)
+            }
+            .padding(.top, 8)
+        } label: {
             Text("Options")
                 .font(.headline)
-
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                GridRow {
-                    Text("Model:")
-                        .gridColumnAlignment(.trailing)
-                    Picker("", selection: $options.model ?? "") {
-                        Text("Default").tag("")
-                        Text("claude-sonnet-4-5-20250929").tag("claude-sonnet-4-5-20250929")
-                        Text("claude-opus-4-6").tag("claude-opus-4-6")
-                        Text("claude-haiku-4-5-20251001").tag("claude-haiku-4-5-20251001")
-                    }
-                    .labelsHidden()
-                    .frame(width: 260)
-                }
-
-                GridRow {
-                    Text("Permission:")
-                        .gridColumnAlignment(.trailing)
-                    Picker("", selection: $options.permissionMode ?? "") {
-                        Text("Default").tag("")
-                        Text("Plan mode").tag("plan")
-                        Text("Auto-accept edits").tag("auto-edit")
-                        Text("Full auto").tag("full-auto")
-                    }
-                    .labelsHidden()
-                    .frame(width: 260)
-                }
-            }
-
-            Toggle("Dangerously skip permissions", isOn: $options.dangerouslySkipPermissions)
-            Toggle("Continue previous session", isOn: $options.continueSession)
-            Toggle("Verbose output", isOn: $options.verbose)
         }
-    }
-
-    // MARK: - Launch Button
-
-    private var launchButton: some View {
-        Button {
-            guard let dir = selectedDirectory else { return }
-            RecentDirectories.add(dir)
-            // Normalize empty string options to nil
-            var opts = options
-            if opts.model?.isEmpty == true { opts.model = nil }
-            if opts.permissionMode?.isEmpty == true { opts.permissionMode = nil }
-            onLaunch?(dir, opts)
-        } label: {
-            Text("Start Claude")
-                .frame(width: 160)
-        }
-        .controlSize(.large)
-        .keyboardShortcut(.return, modifiers: [])
-        .disabled(selectedDirectory == nil)
     }
 
     // MARK: - Actions
+
+    private func launch() {
+        guard let dir = selectedDirectory else { return }
+        RecentDirectories.add(dir)
+        var opts = ClaudeCodeOptions()
+        opts.model = model.isEmpty ? nil : model
+        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+        opts.dangerouslySkipPermissions = skipPermissions
+        opts.continueSession = continueSession
+        opts.verbose = verbose
+        onLaunch?(dir, opts)
+    }
 
     private func chooseFolder() {
         let panel = NSOpenPanel()
@@ -174,24 +243,6 @@ struct LauncherView: View {
         if panel.runModal() == .OK, let url = panel.url {
             selectedDirectory = url
         }
-    }
-}
-
-// MARK: - Optional Binding Extension
-
-private extension Binding where Value == String? {
-    init(_ source: Binding<String?>, default defaultValue: String) {
-        self.init(
-            get: { source.wrappedValue ?? defaultValue },
-            set: { source.wrappedValue = $0 == defaultValue ? nil : $0 }
-        )
-    }
-
-    static func ?? (lhs: Binding<String?>, rhs: String) -> Binding<String> {
-        Binding<String>(
-            get: { lhs.wrappedValue ?? rhs },
-            set: { lhs.wrappedValue = $0 == rhs ? nil : $0 }
-        )
     }
 }
 
