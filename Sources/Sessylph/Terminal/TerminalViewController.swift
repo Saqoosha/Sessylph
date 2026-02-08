@@ -436,21 +436,32 @@ final class TerminalViewController: NSViewController {
 
     /// Re-sends the current terminal size to the pty so tmux picks up
     /// this client's dimensions (e.g. after switching from another terminal).
-    /// Sends a bumped size first because macOS may suppress SIGWINCH when
-    /// the size hasn't actually changed.
     func refreshPtySize() {
         guard terminalView.process.running else { return }
         let fd = terminalView.process.childfd
-        // First: send a 1-row-larger size to guarantee a real change
+
+        // Bump size by 1 row to force SIGWINCH (macOS suppresses it
+        // when the size is unchanged)
         var bumped = terminalView.getWindowSize()
         bumped.ws_row += 1
         _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &bumped)
-        // Then: restore the real size on the next run-loop cycle
+
+        // Restore real size on the next run-loop cycle
         DispatchQueue.main.async { [weak self] in
             guard let self, self.terminalView.process.running else { return }
             var real = self.terminalView.getWindowSize()
             _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &real)
         }
+
+        // Scroll to bottom after tmux finishes redrawing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.scrollToBottom()
+        }
+    }
+
+    /// Scrolls the terminal view to the very bottom of the buffer.
+    func scrollToBottom() {
+        terminalView.scroll(toPosition: 1.0)
     }
 
     // MARK: - Process
@@ -481,6 +492,11 @@ final class TerminalViewController: NSViewController {
             environment: environment,
             execName: "tmux"
         )
+
+        // Scroll to bottom after tmux sends its initial repaint
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.scrollToBottom()
+        }
 
         logger.info("Attached to tmux session: \(self.session.tmuxSessionName)")
     }
