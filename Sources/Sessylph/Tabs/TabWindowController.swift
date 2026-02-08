@@ -302,8 +302,49 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     // MARK: - NSWindowDelegate
 
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if TabManager.shared.isTerminating { return true }
+        if !session.isRunning { return true }
+        if UserDefaults.standard.bool(forKey: Defaults.suppressCloseTabAlert) { return true }
+
+        Task {
+            let alert = NSAlert()
+            alert.messageText = "Close Tab?"
+            alert.informativeText = "The Claude Code session in \"\(session.title)\" will be terminated."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Close Tab")
+            alert.addButton(withTitle: "Cancel")
+            alert.showsSuppressionButton = true
+
+            let response: NSApplication.ModalResponse
+            if let window {
+                response = await alert.beginSheetModal(for: window)
+            } else {
+                response = alert.runModal()
+            }
+
+            if alert.suppressionButton?.state == .on {
+                UserDefaults.standard.set(true, forKey: Defaults.suppressCloseTabAlert)
+            }
+
+            if response == .alertFirstButtonReturn {
+                self.window?.close()
+            }
+        }
+        return false
+    }
+
     func windowWillClose(_ notification: Notification) {
         stopTitlePolling()
+
+        if session.isRunning && !TabManager.shared.isTerminating {
+            let sessionName = session.tmuxSessionName
+            session.isRunning = false
+            Task {
+                try? await TmuxManager.shared.killSession(name: sessionName)
+            }
+        }
+
         TabManager.shared.windowControllerDidClose(self)
     }
 }

@@ -23,6 +23,10 @@ enum Defaults {
     static let launcherContinueSession = "launcherContinueSession"
     static let launcherVerbose = "launcherVerbose"
 
+    // MARK: - Confirmations
+    static let suppressCloseTabAlert = "suppressCloseTabAlert"
+    static let suppressQuitAlert = "suppressQuitAlert"
+
     // MARK: - Sessions
     static let savedSessions = "savedSessions"
     static let recentDirectories = "recentDirectories"
