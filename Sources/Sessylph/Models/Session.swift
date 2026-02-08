@@ -14,8 +14,7 @@ struct Session: Identifiable, Codable, Sendable {
         self.id = UUID()
         self.directory = directory
         self.options = options
-        self.tmuxSessionName =
-            "\(TmuxManager.sessionPrefix)-\(id.uuidString.prefix(8).lowercased())"
+        self.tmuxSessionName = TmuxManager.sessionName(for: id)
         self.title = directory.lastPathComponent
         self.isRunning = false
         self.createdAt = Date()

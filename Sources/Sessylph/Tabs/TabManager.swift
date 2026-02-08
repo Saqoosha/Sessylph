@@ -126,7 +126,7 @@ final class TabManager {
             return
         }
 
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         window.tabGroup?.selectedWindow = window
         window.makeKeyAndOrderFront(nil)
     }
@@ -139,7 +139,7 @@ final class TabManager {
             return controller
         }
         // Fallback: derive tmux session name from UUID and match
-        let tmuxName = "\(TmuxManager.sessionPrefix)-\(sessionId.uuidString.prefix(8).lowercased())"
+        let tmuxName = TmuxManager.sessionName(for: sessionId)
         return windowControllers.first(where: { $0.session.tmuxSessionName == tmuxName })
     }
 

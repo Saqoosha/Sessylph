@@ -25,34 +25,22 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     func postTaskCompleted(sessionTitle: String, sessionId: String) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnStop) else { return }
-        guard !isSessionFrontmost(sessionId: sessionId) else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "✅ Task Completed"
-        content.body = sessionTitle
-        content.sound = .default
-        content.userInfo = ["sessionId": sessionId]
-
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                logger.error("Failed to post notification: \(error.localizedDescription)")
-            }
-        }
+        post(title: "✅ Task Completed", body: sessionTitle, sessionId: sessionId)
     }
 
     func postNeedsAttention(sessionTitle: String, sessionId: String, message: String) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
+        post(title: "⚠️ Needs Attention", body: "\(sessionTitle): \(message)", sessionId: sessionId)
+    }
+
+    // MARK: - Private
+
+    private func post(title: String, body: String, sessionId: String) {
         guard !isSessionFrontmost(sessionId: sessionId) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "⚠️ Needs Attention"
-        content.body = "\(sessionTitle): \(message)"
+        content.title = title
+        content.body = body
         content.sound = .default
         content.userInfo = ["sessionId": sessionId]
 
@@ -68,8 +56,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             }
         }
     }
-
-    // MARK: - Private
 
     private func isSessionFrontmost(sessionId: String) -> Bool {
         guard NSApp.isActive,

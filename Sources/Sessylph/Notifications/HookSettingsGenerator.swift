@@ -12,7 +12,7 @@ enum HookSettingsGenerator {
                         "hooks": [
                             [
                                 "type": "command",
-                                "command": "\(shellQuote(notifierPath)) \(sessionId) stop",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) stop",
                                 "timeout": 5,
                             ]
                         ],
@@ -24,7 +24,7 @@ enum HookSettingsGenerator {
                         "hooks": [
                             [
                                 "type": "command",
-                                "command": "\(shellQuote(notifierPath)) \(sessionId) notification",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) notification",
                                 "timeout": 5,
                             ]
                         ],
@@ -54,14 +54,5 @@ enum HookSettingsGenerator {
     /// Resolves the path to the bundled sessylph-notifier tool.
     static func notifierPath() -> String? {
         Bundle.main.path(forAuxiliaryExecutable: "sessylph-notifier")
-    }
-
-    private static func shellQuote(_ value: String) -> String {
-        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._/~+:@"))
-        if value.unicodeScalars.allSatisfy({ safe.contains($0) }) {
-            return value
-        }
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
     }
 }
