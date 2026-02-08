@@ -23,6 +23,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         super.init(window: window)
         window.delegate = self
+        restoreWindowFrame()
 
         showLauncher()
     }
@@ -36,8 +37,13 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         super.init(window: window)
         window.delegate = self
+        restoreWindowFrame()
 
         showTerminal()
+    }
+
+    private func restoreWindowFrame() {
+        self.windowFrameAutosaveName = Self.frameAutosaveName
     }
 
     @available(*, unavailable)
@@ -46,6 +52,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     // MARK: - Window Factory
+
+    private static let frameAutosaveName = "SessylphTerminalWindow"
 
     private static func makeWindow(title: String) -> NSWindow {
         let window = NSWindow(
@@ -58,8 +66,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.tabbingMode = .preferred
         window.tabbingIdentifier = "sh.saqoo.Sessylph.terminal"
         window.minSize = NSSize(width: 480, height: 320)
+
         window.setContentSize(defaultSize)
         window.center()
+
         return window
     }
 
