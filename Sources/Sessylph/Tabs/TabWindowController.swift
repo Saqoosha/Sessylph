@@ -173,13 +173,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let exitStr = exitCode.map { String($0) } ?? "nil"
         logger.info("Process terminated in session \(self.session.tmuxSessionName) (exit=\(exitStr))")
 
-        // Show termination message in terminal so user knows what happened
-        vc.feedInfo("[Process exited with code \(exitStr)]")
-
-        // Update tab title to indicate session ended
-        let title = session.title + " (Exited)"
-        window?.title = title
-        window?.tab.title = title
+        // Close the tab/window when the shell process exits
+        window?.close()
     }
 
     // MARK: - NSWindowDelegate
