@@ -4,7 +4,7 @@ import os.log
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Sessylph", category: "Terminal")
 
-private let terminalPadding: CGFloat = 4
+private let terminalPadding: CGFloat = 16
 
 // MARK: - Delegate Protocol
 
@@ -88,7 +88,14 @@ final class TerminalViewController: NSViewController {
             return
         }
 
-        let environment = EnvironmentBuilder.loginEnvironment()
+        var environment = EnvironmentBuilder.loginEnvironment()
+        // Ensure TERM is set to a value tmux understands; without this
+        // tmux may fail with "terminal does not support clear".
+        if let idx = environment.firstIndex(where: { $0.hasPrefix("TERM=") }) {
+            environment[idx] = "TERM=xterm-256color"
+        } else {
+            environment.append("TERM=xterm-256color")
+        }
         let args = ["attach-session", "-t", session.tmuxSessionName]
 
         terminalView.startProcess(
