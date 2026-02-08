@@ -219,11 +219,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleHookNotification(sessionId: String?, event: String?, message: String?) {
-        guard let sessionId, let event else { return }
+        guard let sessionId, let event else {
+            logger.warning("Hook event received with missing fields — sessionId: \(sessionId ?? "nil", privacy: .public), event: \(event ?? "nil", privacy: .public)")
+            return
+        }
 
         let uuid = UUID(uuidString: sessionId)
         let controller = uuid.flatMap { TabManager.shared.findController(for: $0) }
         let sessionTitle = controller?.session.title ?? "Claude Code"
+        let isFrontmost = controller?.window?.isKeyWindow == true && NSApp.isActive
+
+        logger.info("Hook event: \(event, privacy: .public) session: \(sessionTitle, privacy: .public) (\(sessionId, privacy: .public)) frontmost: \(isFrontmost, privacy: .public) message: \(message ?? "", privacy: .public)")
 
         switch event {
         case "stop":
@@ -232,7 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller?.markNeedsAttention()
             NotificationManager.shared.postNeedsAttention(sessionTitle: sessionTitle, sessionId: sessionId, message: message ?? "Needs your attention")
         default:
-            logger.debug("Unknown hook event: \(event)")
+            logger.warning("Unknown hook event: \(event, privacy: .public)")
         }
     }
 

@@ -36,7 +36,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     // MARK: - Private
 
     private func post(title: String, body: String, sessionId: String) {
-        guard !isSessionFrontmost(sessionId: sessionId) else { return }
+        guard !isSessionFrontmost(sessionId: sessionId) else {
+            logger.debug("Notification suppressed (session frontmost): \(title, privacy: .public) — \(body, privacy: .public)")
+            return
+        }
+        logger.info("Posting notification: \(title, privacy: .public) — \(body, privacy: .public)")
 
         let content = UNMutableNotificationContent()
         content.title = title
