@@ -48,6 +48,20 @@ final class TmuxManager: Sendable {
         try? await runTmux(args: [
             "set-option", "-t", name, "allow-passthrough", "on",
         ])
+
+        // Enable extended keys (CSI u / kitty keyboard protocol) so that
+        // Shift+Enter reaches Claude Code as a distinct key from plain Enter.
+        // Server-level options: tell tmux our outer terminal supports extkeys
+        // and to always forward them using the CSI u format.
+        try? await runTmux(args: [
+            "set-option", "-s", "extended-keys", "on",
+        ])
+        try? await runTmux(args: [
+            "set-option", "-s", "extended-keys-format", "csi-u",
+        ])
+        try? await runTmux(args: [
+            "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+        ])
     }
 
     /// Sends keys to launch claude in the session.
