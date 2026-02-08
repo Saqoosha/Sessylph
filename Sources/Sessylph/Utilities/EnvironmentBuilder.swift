@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "EnvironmentBuilder")
 
 enum EnvironmentBuilder {
     nonisolated(unsafe) private static var cachedEnvironment: [String]?
@@ -23,6 +26,7 @@ enum EnvironmentBuilder {
             try process.run()
             process.waitUntilExit()
         } catch {
+            logger.warning("Failed to capture login shell environment: \(error.localizedDescription). Using process environment as fallback.")
             let fallback = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
             cachedEnvironment = fallback
             return fallback
@@ -30,6 +34,7 @@ enum EnvironmentBuilder {
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let output = String(data: data, encoding: .utf8) else {
+            logger.warning("Failed to decode login shell output. Using process environment as fallback.")
             let fallback = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
             cachedEnvironment = fallback
             return fallback

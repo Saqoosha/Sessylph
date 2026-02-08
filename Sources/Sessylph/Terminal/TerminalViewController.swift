@@ -4,6 +4,8 @@ import os.log
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Sessylph", category: "Terminal")
 
+private let terminalPadding: CGFloat = 4
+
 // MARK: - Delegate Protocol
 
 @MainActor
@@ -31,26 +33,40 @@ final class TerminalViewController: NSViewController {
     // MARK: - Lifecycle
 
     override func loadView() {
-        view = NSView()
+        let container = NSView()
+        container.wantsLayer = true
+        view = container
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Create terminal view
-        terminalView = LocalProcessTerminalView(frame: view.bounds)
-        terminalView.autoresizingMask = [.width, .height]
+        // Appearance
+        let fontSize = CGFloat(UserDefaults.standard.double(forKey: Defaults.terminalFontSize))
+        let fontName = UserDefaults.standard.string(forKey: Defaults.terminalFontName) ?? "SF Mono"
+        let bgColor: NSColor = .white
+
+        // Container background matches terminal
+        view.layer?.backgroundColor = bgColor.cgColor
+
+        // Create terminal view with padding via Auto Layout
+        terminalView = LocalProcessTerminalView(frame: .zero)
+        terminalView.translatesAutoresizingMaskIntoConstraints = false
         let processDelegate = TerminalProcessDelegate(owner: self)
         self.processDelegate = processDelegate
         terminalView.processDelegate = processDelegate
         view.addSubview(terminalView)
 
-        // Appearance
-        let fontSize = CGFloat(UserDefaults.standard.double(forKey: Defaults.terminalFontSize))
-        let fontName = UserDefaults.standard.string(forKey: Defaults.terminalFontName) ?? "SF Mono"
+        NSLayoutConstraint.activate([
+            terminalView.topAnchor.constraint(equalTo: view.topAnchor, constant: terminalPadding),
+            terminalView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: terminalPadding),
+            terminalView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -terminalPadding),
+            terminalView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -terminalPadding),
+        ])
+
         terminalView.font = NSFont(name: fontName, size: fontSize)
             ?? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-        terminalView.nativeBackgroundColor = .white
+        terminalView.nativeBackgroundColor = bgColor
         terminalView.nativeForegroundColor = .black
 
         // TODO: Detect bell sequences (\a) for notification fallback
@@ -68,6 +84,7 @@ final class TerminalViewController: NSViewController {
             tmuxPath = try ClaudeCLI.tmuxPath()
         } catch {
             logger.error("Failed to resolve tmux path: \(error.localizedDescription)")
+            feedError("tmux not found: \(error.localizedDescription)")
             return
         }
 
@@ -83,13 +100,23 @@ final class TerminalViewController: NSViewController {
 
         logger.info("Attached to tmux session: \(self.session.tmuxSessionName)")
     }
+
+    /// Feeds a visible error message into the terminal view.
+    func feedError(_ message: String) {
+        terminalView?.feed(text: "\r\n\u{1b}[1;31m[Error]\u{1b}[0m \(message)\r\n")
+    }
+
+    /// Feeds a visible info message into the terminal view.
+    func feedInfo(_ message: String) {
+        terminalView?.feed(text: "\r\n\u{1b}[2m\(message)\u{1b}[0m\r\n")
+    }
 }
 
 // MARK: - Delegate Bridge (nonisolated for SwiftTerm callback thread safety)
 
 /// Bridges SwiftTerm's nonisolated delegate callbacks to the @MainActor TerminalViewController.
 private final class TerminalProcessDelegate: NSObject, LocalProcessTerminalViewDelegate, @unchecked Sendable {
-    unowned let owner: TerminalViewController
+    weak var owner: TerminalViewController?
 
     init(owner: TerminalViewController) {
         self.owner = owner
@@ -100,14 +127,16 @@ private final class TerminalProcessDelegate: NSObject, LocalProcessTerminalViewD
     }
 
     func setTerminalTitle(source _: LocalProcessTerminalView, title: String) {
-        Task { @MainActor [owner] in
+        Task { @MainActor [weak owner] in
+            guard let owner else { return }
             owner.delegate?.terminalDidUpdateTitle(owner, title: title)
         }
     }
 
     func processTerminated(source _: TerminalView, exitCode: Int32?) {
         logger.info("Terminal process terminated (exit=\(exitCode.map { String($0) } ?? "nil"))")
-        Task { @MainActor [owner] in
+        Task { @MainActor [weak owner] in
+            guard let owner else { return }
             owner.delegate?.terminalProcessDidTerminate(owner, exitCode: exitCode)
         }
     }

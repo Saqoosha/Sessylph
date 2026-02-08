@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "SessionStore")
 
 @MainActor
 final class SessionStore: ObservableObject {
@@ -6,10 +9,13 @@ final class SessionStore: ObservableObject {
 
     @Published var sessions: [Session] = []
 
-    private var storageURL: URL {
-        let appSupport = FileManager.default.urls(
+    private var storageURL: URL? {
+        guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
+        ).first else {
+            logger.error("Application Support directory not found")
+            return nil
+        }
         let appDir = appSupport.appendingPathComponent("sh.saqoo.Sessylph")
         return appDir.appendingPathComponent("sessions.json")
     }
@@ -19,13 +25,17 @@ final class SessionStore: ObservableObject {
     }
 
     func save() {
+        guard let storageURL else {
+            logger.error("Cannot save: storage URL unavailable")
+            return
+        }
         let dir = storageURL.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(
                 at: dir, withIntermediateDirectories: true
             )
         } catch {
-            print("SessionStore: failed to create directory: \(error)")
+            logger.error("Failed to create directory: \(error.localizedDescription)")
             return
         }
 
@@ -37,11 +47,16 @@ final class SessionStore: ObservableObject {
             let data = try encoder.encode(sessions)
             try data.write(to: storageURL, options: .atomic)
         } catch {
-            print("SessionStore: failed to save: \(error)")
+            logger.error("Failed to save sessions: \(error.localizedDescription)")
         }
     }
 
     func load() {
+        guard let storageURL else {
+            logger.error("Cannot load: storage URL unavailable")
+            sessions = []
+            return
+        }
         guard FileManager.default.fileExists(atPath: storageURL.path) else {
             sessions = []
             return
@@ -54,7 +69,7 @@ final class SessionStore: ObservableObject {
             let data = try Data(contentsOf: storageURL)
             sessions = try decoder.decode([Session].self, from: data)
         } catch {
-            print("SessionStore: failed to load: \(error)")
+            logger.error("Failed to load sessions: \(error.localizedDescription)")
             sessions = []
         }
     }
