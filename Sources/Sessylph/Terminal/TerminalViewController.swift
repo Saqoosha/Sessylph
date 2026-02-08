@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import SwiftTerm
 import os.log
 
@@ -21,6 +22,10 @@ final class TerminalViewController: NSViewController {
     weak var delegate: TerminalViewControllerDelegate?
     private var terminalView: LocalProcessTerminalView!
     private var processDelegate: TerminalProcessDelegate?
+    nonisolated(unsafe) private var keyEventMonitor: Any?
+    nonisolated(unsafe) private var mouseUpMonitor: Any?
+    nonisolated(unsafe) private var mouseMovedMonitor: Any?
+    private var isOverURL = false
 
     init(session: Session) {
         self.session = session
@@ -69,11 +74,185 @@ final class TerminalViewController: NSViewController {
         terminalView.nativeBackgroundColor = bgColor
         terminalView.nativeForegroundColor = .black
 
-        // TODO: Detect bell sequences (\a) for notification fallback
-        //       when the active session is not visible.
+        // Disable mouse reporting so SwiftTerm handles selection natively
+        // instead of forwarding mouse events to tmux.
+        // scrollWheel is independent and continues to work.
+        terminalView.allowMouseReporting = false
+
+        installShiftEnterMonitor()
+        installMouseMonitors()
 
         // Start tmux attach
         startTmuxAttach()
+    }
+
+    deinit {
+        if let keyEventMonitor {
+            NSEvent.removeMonitor(keyEventMonitor)
+        }
+        if let mouseUpMonitor {
+            NSEvent.removeMonitor(mouseUpMonitor)
+        }
+        if let mouseMovedMonitor {
+            NSEvent.removeMonitor(mouseMovedMonitor)
+        }
+    }
+
+    // MARK: - Shift+Enter → newline
+
+    /// Intercepts Shift+Enter before SwiftTerm's keyDown handler and sends
+    /// LF (0x0A) so Claude Code inserts a newline instead of submitting.
+    private func installShiftEnterMonitor() {
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Extract Sendable values before crossing into MainActor
+            guard event.keyCode == 36 /* Return */ else { return event }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard flags.contains(.shift),
+                  !flags.contains(.command),
+                  !flags.contains(.control),
+                  !flags.contains(.option) else {
+                return event
+            }
+            guard let eventWindow = event.window else { return event }
+            let windowID = ObjectIdentifier(eventWindow)
+
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self,
+                      let myWindow = self.view.window,
+                      ObjectIdentifier(myWindow) == windowID else { return false }
+                // Send LF (0x0A, same as Ctrl+J) which Claude Code treats as newline
+                self.terminalView.send(data: ArraySlice<UInt8>([0x0a]))
+                return true
+            }
+            return handled ? nil : event
+        }
+    }
+
+    // MARK: - Mouse Handling (Auto-copy & URL Click)
+
+    private func installMouseMonitors() {
+        // Auto-copy selection on mouse release & URL click detection
+        mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+            guard let eventWindow = event.window else { return event }
+            let windowID = ObjectIdentifier(eventWindow)
+
+            MainActor.assumeIsolated {
+                guard let self,
+                      let myWindow = self.view.window,
+                      ObjectIdentifier(myWindow) == windowID else { return }
+
+                if self.terminalView.selectionActive {
+                    // Auto-copy selection to clipboard (Warp-style)
+                    self.terminalView.copy(self)
+                } else if event.clickCount == 1 {
+                    // Single click with no selection → check for URL
+                    if let url = self.detectURL(at: event) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+            return event
+        }
+
+        // Tracking area for mouseMoved events on the terminal view
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        terminalView.addTrackingArea(trackingArea)
+
+        // Cursor change on URL hover
+        mouseMovedMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .mouseEntered, .mouseExited]) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.handleMouseMovedOrExited(event)
+            }
+            return event
+        }
+    }
+
+    private func handleMouseMovedOrExited(_ event: NSEvent) {
+        if event.type == .mouseExited {
+            if isOverURL {
+                isOverURL = false
+                NSCursor.iBeam.set()
+            }
+            return
+        }
+
+        // Check if mouse is over our terminal view
+        let pointInTerminal = terminalView.convert(event.locationInWindow, from: nil)
+        guard terminalView.bounds.contains(pointInTerminal) else {
+            if isOverURL {
+                isOverURL = false
+                NSCursor.iBeam.set()
+            }
+            return
+        }
+
+        let hasURL = detectURL(at: event) != nil
+        if hasURL != isOverURL {
+            isOverURL = hasURL
+            if hasURL {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.iBeam.set()
+            }
+        }
+    }
+
+    // MARK: - URL Detection
+
+    private func detectURL(at event: NSEvent) -> URL? {
+        let (col, row) = gridPosition(from: event)
+        let terminal = terminalView.getTerminal()
+        guard row >= 0, row < terminal.rows, col >= 0, col < terminal.cols else {
+            return nil
+        }
+
+        guard let line = terminal.getLine(row: row) else { return nil }
+        let lineText = line.translateToString(trimRight: true)
+        guard !lineText.isEmpty else { return nil }
+
+        return findURL(in: lineText, atColumn: col)
+    }
+
+    private func findURL(in text: String, atColumn col: Int) -> URL? {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return nil
+        }
+
+        let nsText = text as NSString
+        let results = detector.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+
+        for result in results {
+            guard let url = result.url else { continue }
+            let startCol = result.range.location
+            let endCol = result.range.location + result.range.length
+            if col >= startCol, col < endCol {
+                return url
+            }
+        }
+        return nil
+    }
+
+    /// Converts a mouse event to terminal grid coordinates (col, row).
+    private func gridPosition(from event: NSEvent) -> (col: Int, row: Int) {
+        let point = terminalView.convert(event.locationInWindow, from: nil)
+        let (cellWidth, cellHeight) = cellDimensions()
+        let col = Int(point.x / cellWidth)
+        let row = Int((terminalView.bounds.height - point.y) / cellHeight)
+        return (col, row)
+    }
+
+    /// Computes cell dimensions from the terminal font, replicating SwiftTerm's internal logic.
+    private func cellDimensions() -> (width: CGFloat, height: CGFloat) {
+        let f = terminalView.font
+        let cellWidth = f.advancement(forGlyph: f.glyph(withName: "W")).width
+        let cellHeight = ceil(CTFontGetAscent(f) + CTFontGetDescent(f) + CTFontGetLeading(f))
+        return (max(1, cellWidth), max(1, cellHeight))
     }
 
     // MARK: - Process
