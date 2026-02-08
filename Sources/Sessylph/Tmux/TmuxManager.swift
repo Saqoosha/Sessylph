@@ -28,74 +28,74 @@ final class TmuxManager: Sendable {
 
     private init() {}
 
-    /// Creates a new detached tmux session.
-    /// `tmux new-session -d -s {name} -c {directory}`
-    func createSession(name: String, directory: URL) async throws {
-        _ = try await runTmux(args: [
-            "new-session", "-d",
-            "-s", name,
-            "-c", directory.path,
-        ])
-    }
-
     /// Configures tmux server-level options that only need to be set once
     /// per server lifetime (e.g. extended keys for CSI u / kitty protocol).
+    /// All commands are batched into a single tmux invocation.
     /// Best-effort: failures are logged but don't block session launch.
     func configureServerOptions() async {
-        try? await runTmux(args: [
+        // Batch all server-level options into one process spawn using ";" separators.
+        // Individual command failures don't prevent subsequent commands from running.
+        _ = try? await runTmux(args: [
             "set-option", "-s", "extended-keys", "on",
+            ";", "set-option", "-s", "extended-keys-format", "csi-u",
+            ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+            // Use the latest active client's size (not the smallest), so when
+            // multiple clients (e.g. Warp + Sessylph) share a session, switching
+            // between them resizes the window to match the active terminal.
+            ";", "set-option", "-g", "window-size", "latest",
+            // Scroll 1 line per mouse wheel event (default is 5)
+            ";", "bind-key", "-T", "copy-mode", "WheelUpPane", "send-keys", "-X", "scroll-up",
+            ";", "bind-key", "-T", "copy-mode", "WheelDownPane", "send-keys", "-X", "scroll-down",
+            ";", "bind-key", "-T", "copy-mode-vi", "WheelUpPane", "send-keys", "-X", "scroll-up",
+            ";", "bind-key", "-T", "copy-mode-vi", "WheelDownPane", "send-keys", "-X", "scroll-down",
         ])
-        try? await runTmux(args: [
-            "set-option", "-s", "extended-keys-format", "csi-u",
-        ])
-        try? await runTmux(args: [
-            "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
-        ])
-        // Use the latest active client's size (not the smallest), so when
-        // multiple clients (e.g. Warp + Sessylph) share a session, switching
-        // between them resizes the window to match the active terminal.
-        try? await runTmux(args: [
-            "set-option", "-g", "window-size", "latest",
-        ])
-        // Scroll 1 line per mouse wheel event (default is 5)
-        for table in ["copy-mode", "copy-mode-vi"] {
-            try? await runTmux(args: [
-                "bind-key", "-T", table, "WheelUpPane", "send-keys", "-X", "scroll-up",
-            ])
-            try? await runTmux(args: [
-                "bind-key", "-T", table, "WheelDownPane", "send-keys", "-X", "scroll-down",
-            ])
-        }
     }
 
-    /// Configures a tmux session for title passthrough so terminal title
-    /// escape sequences from Claude Code reach the outer terminal (SwiftTerm).
-    /// Best-effort: failures are logged but don't block session launch.
+    /// Configures an existing tmux session for title passthrough.
+    /// Used when reattaching to orphaned sessions that are already running.
+    /// All commands are batched into a single tmux invocation.
+    /// Best-effort: failures are logged but don't block reattach.
     func configureSession(name: String) async {
-        // Allow the inner process to set the outer terminal's title
-        try? await runTmux(args: [
+        _ = try? await runTmux(args: [
             "set-option", "-t", name, "set-titles", "on",
-        ])
-        try? await runTmux(args: [
-            "set-option", "-t", name, "set-titles-string", "#{pane_title}",
-        ])
-        // Allow passthrough of escape sequences (tmux 3.3+, ignore if unsupported)
-        try? await runTmux(args: [
-            "set-option", "-t", name, "allow-passthrough", "on",
-        ])
-        // Enable mouse support so scroll wheel events are handled by tmux
-        try? await runTmux(args: [
-            "set-option", "-t", name, "mouse", "on",
+            ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
+            ";", "set-option", "-t", name, "allow-passthrough", "on",
+            ";", "set-option", "-t", name, "mouse", "on",
         ])
     }
 
-    /// Sends keys to launch claude in the session.
-    /// `tmux send-keys -t {name} 'command' Enter`
-    func launchClaude(sessionName: String, command: String) async throws {
-        _ = try await runTmux(args: [
-            "send-keys", "-t", sessionName,
-            command, "Enter",
-        ])
+    /// Creates a tmux session, configures it for title passthrough, and launches
+    /// Claude — all in a single process spawn to minimize startup latency.
+    ///
+    /// Replaces the previous sequence of `createSession` + `configureSession` +
+    /// `launchClaude` which required 6 separate process spawns.
+    func createAndLaunchSession(
+        name: String,
+        directory: URL,
+        command: String
+    ) async throws {
+        do {
+            _ = try await runTmux(args: [
+                "new-session", "-d", "-s", name, "-c", directory.path,
+                // Title passthrough (best-effort)
+                ";", "set-option", "-t", name, "set-titles", "on",
+                ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
+                // Escape sequence passthrough (tmux 3.3+, may fail on older versions)
+                ";", "set-option", "-t", name, "allow-passthrough", "on",
+                // Mouse support for scroll wheel
+                ";", "set-option", "-t", name, "mouse", "on",
+                // Launch Claude
+                ";", "send-keys", "-t", name, command, "Enter",
+            ])
+        } catch {
+            // Best-effort set-options (e.g. allow-passthrough on older tmux) may
+            // cause non-zero exit even though the session was created and Claude
+            // was launched successfully. Verify the session actually exists.
+            guard await sessionExists(name: name) else {
+                throw error
+            }
+            logger.info("Session \(name) created (some tmux options may not be supported)")
+        }
     }
 
     /// Kills a session.

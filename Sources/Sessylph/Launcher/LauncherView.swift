@@ -11,6 +11,7 @@ struct LauncherView: View {
     @State private var selectedDirectory: URL?
     @State private var recentDirectories: [URL] = []
     @State private var hoveredDirectory: URL?
+    @State private var isLaunching = false
 
     var onLaunch: ((URL, ClaudeCodeOptions) -> Void)?
 
@@ -29,6 +30,7 @@ struct LauncherView: View {
                 .padding(.top, 36)
                 .padding(.bottom, 20)
             }
+            .disabled(isLaunching)
 
             Divider()
 
@@ -38,12 +40,22 @@ struct LauncherView: View {
                 Button {
                     launch()
                 } label: {
-                    Label("Start Claude", systemImage: "play.fill")
-                        .frame(width: 140)
+                    Group {
+                        if isLaunching {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Starting...")
+                            }
+                        } else {
+                            Label("Start Claude", systemImage: "play.fill")
+                        }
+                    }
+                    .frame(width: 140)
                 }
                 .controlSize(.large)
                 .keyboardShortcut(.return, modifiers: [])
-                .disabled(selectedDirectory == nil)
+                .disabled(selectedDirectory == nil || isLaunching)
                 Spacer()
             }
             .padding(.vertical, 16)
@@ -216,7 +228,8 @@ struct LauncherView: View {
     // MARK: - Actions
 
     private func launch() {
-        guard let dir = selectedDirectory else { return }
+        guard let dir = selectedDirectory, !isLaunching else { return }
+        isLaunching = true
         RecentDirectories.add(dir)
         var opts = ClaudeCodeOptions()
         opts.model = model.isEmpty ? nil : model

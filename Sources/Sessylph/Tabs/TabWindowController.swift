@@ -134,15 +134,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     func launchClaude(directory: URL, options: ClaudeCodeOptions) async {
         session = Session(directory: directory, options: options)
 
+        // Update tab title immediately so the user sees feedback before tmux finishes
+        applyTitles(emoji: "⏳")
+
         do {
-            try await TmuxManager.shared.createSession(
-                name: session.tmuxSessionName,
-                directory: directory
-            )
-
-            // Configure tmux for title passthrough (best-effort)
-            await TmuxManager.shared.configureSession(name: session.tmuxSessionName)
-
+            // Resolve paths and generate hooks before the tmux call (sync, fast)
             let claudePath = try ClaudeCLI.claudePath()
 
             var hookSettingsPath: String? = nil
@@ -159,8 +155,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 hookSettingsPath: hookSettingsPath
             )
 
-            try await TmuxManager.shared.launchClaude(
-                sessionName: session.tmuxSessionName,
+            // Single tmux invocation: create session + configure + launch
+            try await TmuxManager.shared.createAndLaunchSession(
+                name: session.tmuxSessionName,
+                directory: directory,
                 command: command
             )
 
@@ -171,6 +169,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             try? await TmuxManager.shared.killSession(name: session.tmuxSessionName)
 
             logger.error("Failed to launch Claude: \(error.localizedDescription)")
+
+            // Reset launcher UI before showing the error alert
+            showLauncher()
+
             let alert = NSAlert()
             alert.messageText = "Failed to Launch"
             alert.informativeText = error.localizedDescription
