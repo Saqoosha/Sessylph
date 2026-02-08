@@ -7,7 +7,10 @@ DERIVED_DATA_DIR="${BUILD_DIR}/DerivedData"
 
 APP_NAME="Sessylph"
 VOL_NAME="Sessylph"
-DMG_NAME="Sessylph"
+
+# Read version from project.yml
+VERSION=$(grep 'MARKETING_VERSION:' "${ROOT_DIR}/project.yml" | sed 's/.*: *"\(.*\)".*/\1/')
+DMG_NAME="Sessylph-${VERSION}"
 
 DMG_ROOT="${BUILD_DIR}/dmg-root"
 OUT_DMG="${BUILD_DIR}/${DMG_NAME}.dmg"
