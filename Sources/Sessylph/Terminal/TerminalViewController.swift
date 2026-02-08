@@ -26,6 +26,7 @@ final class TerminalViewController: NSViewController {
     nonisolated(unsafe) private var mouseUpMonitor: Any?
     nonisolated(unsafe) private var mouseMovedMonitor: Any?
     private var isOverURL = false
+    private var urlUnderlineLayer: CALayer?
 
     init(session: Session) {
         self.session = session
@@ -84,6 +85,19 @@ final class TerminalViewController: NSViewController {
 
         // Start tmux attach
         startTmuxAttach()
+    }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        resetURLHoverState()
+    }
+
+    private func resetURLHoverState() {
+        if isOverURL {
+            isOverURL = false
+            hideURLUnderline()
+            NSCursor.arrow.set()
+        }
     }
 
     deinit {
@@ -165,8 +179,13 @@ final class TerminalViewController: NSViewController {
 
         // Cursor change on URL hover
         mouseMovedMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .mouseEntered, .mouseExited]) { [weak self] event in
+            guard let eventWindow = event.window else { return event }
+            let windowID = ObjectIdentifier(eventWindow)
+
             MainActor.assumeIsolated {
-                guard let self else { return }
+                guard let self,
+                      let myWindow = self.view.window,
+                      ObjectIdentifier(myWindow) == windowID else { return }
                 self.handleMouseMovedOrExited(event)
             }
             return event
@@ -177,6 +196,7 @@ final class TerminalViewController: NSViewController {
         if event.type == .mouseExited {
             if isOverURL {
                 isOverURL = false
+                hideURLUnderline()
                 NSCursor.iBeam.set()
             }
             return
@@ -187,25 +207,66 @@ final class TerminalViewController: NSViewController {
         guard terminalView.bounds.contains(pointInTerminal) else {
             if isOverURL {
                 isOverURL = false
+                hideURLUnderline()
                 NSCursor.iBeam.set()
             }
             return
         }
 
-        let hasURL = detectURL(at: event) != nil
-        if hasURL != isOverURL {
-            isOverURL = hasURL
-            if hasURL {
+        if let hit = detectURLHit(at: event) {
+            if !isOverURL {
+                isOverURL = true
                 NSCursor.pointingHand.set()
-            } else {
-                NSCursor.iBeam.set()
             }
+            showURLUnderline(row: hit.row, startCol: hit.range.location, length: hit.range.length)
+        } else if isOverURL {
+            isOverURL = false
+            hideURLUnderline()
+            NSCursor.iBeam.set()
         }
+    }
+
+    // MARK: - URL Underline
+
+    private func showURLUnderline(row: Int, startCol: Int, length: Int) {
+        let (cellWidth, cellHeight) = cellDimensions()
+        let x = CGFloat(startCol) * cellWidth
+        let y = terminalView.bounds.height - CGFloat(row + 1) * cellHeight
+        let width = CGFloat(length) * cellWidth
+        let underlineY = y + 1 // 1pt above cell bottom
+
+        let layer: CALayer
+        if let existing = urlUnderlineLayer {
+            layer = existing
+        } else {
+            layer = CALayer()
+            layer.backgroundColor = NSColor.linkColor.cgColor
+            terminalView.layer?.addSublayer(layer)
+            urlUnderlineLayer = layer
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.frame = CGRect(x: x, y: underlineY, width: width, height: 1)
+        layer.isHidden = false
+        CATransaction.commit()
+    }
+
+    private func hideURLUnderline() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        urlUnderlineLayer?.isHidden = true
+        CATransaction.commit()
     }
 
     // MARK: - URL Detection
 
-    private func detectURL(at event: NSEvent) -> URL? {
+    private struct URLHit {
+        let url: URL
+        let range: NSRange
+        let row: Int
+    }
+
+    private func detectURLHit(at event: NSEvent) -> URLHit? {
         let (col, row) = gridPosition(from: event)
         let terminal = terminalView.getTerminal()
         guard row >= 0, row < terminal.rows, col >= 0, col < terminal.cols else {
@@ -216,26 +277,26 @@ final class TerminalViewController: NSViewController {
         let lineText = line.translateToString(trimRight: true)
         guard !lineText.isEmpty else { return nil }
 
-        return findURL(in: lineText, atColumn: col)
-    }
-
-    private func findURL(in text: String, atColumn col: Int) -> URL? {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
             return nil
         }
 
-        let nsText = text as NSString
-        let results = detector.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        let nsText = lineText as NSString
+        let results = detector.matches(in: lineText, range: NSRange(location: 0, length: nsText.length))
 
         for result in results {
             guard let url = result.url else { continue }
             let startCol = result.range.location
-            let endCol = result.range.location + result.range.length
+            let endCol = startCol + result.range.length
             if col >= startCol, col < endCol {
-                return url
+                return URLHit(url: url, range: result.range, row: row)
             }
         }
         return nil
+    }
+
+    private func detectURL(at event: NSEvent) -> URL? {
+        detectURLHit(at: event)?.url
     }
 
     /// Converts a mouse event to terminal grid coordinates (col, row).
