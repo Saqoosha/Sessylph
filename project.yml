@@ -39,6 +39,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.saqoo.Sessylph
         PRODUCT_NAME: Sessylph
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: Sources/Sessylph/App/Info.plist
         CODE_SIGN_ENTITLEMENTS: Sessylph.entitlements
         DEVELOPMENT_TEAM: G5G54TCH8W
