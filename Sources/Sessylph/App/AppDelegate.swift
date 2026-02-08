@@ -30,6 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("Sessylph launched")
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        TabManager.shared.needsPtyRefresh = true
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             TabManager.shared.newTab()
