@@ -9,9 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - App Lifecycle
 
+    nonisolated(unsafe) private var tabSwitchMonitor: Any?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Defaults.register()
         setupMenu()
+        installTabSwitchMonitor()
         setupDistributedNotificationListener()
         requestNotificationPermission()
 
@@ -33,6 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let monitor = tabSwitchMonitor {
+            NSEvent.removeMonitor(monitor)
+            tabSwitchMonitor = nil
+        }
         SessionStore.shared.save()
         logger.info("Sessylph terminating")
     }
@@ -96,7 +103,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: "Show All Windows", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
-        windowMenu.delegate = self
         let windowMenuItem = NSMenuItem()
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
@@ -127,6 +133,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindow.shared.show()
     }
 
+    // MARK: - Tab Switching (Cmd+1~9)
+
+    private func installTabSwitchMonitor() {
+        tabSwitchMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard flags == .command,
+                  let chars = event.charactersIgnoringModifiers,
+                  let digit = Int(chars),
+                  digit >= 1, digit <= 9
+            else { return event }
+
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let keyWindow = NSApp.keyWindow,
+                      let tabGroup = keyWindow.tabGroup
+                else { return false }
+
+                let tabWindows = tabGroup.windows
+                let index = digit - 1
+                guard index < tabWindows.count else { return false }
+
+                tabWindows[index].makeKeyAndOrderFront(nil)
+                return true
+            }
+            return handled ? nil : event
+        }
+    }
+
     // MARK: - Distributed Notification Listener (from sessylph-notifier)
 
     private nonisolated func setupDistributedNotificationListener() {
@@ -149,17 +182,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let sessionId, let event else { return }
 
         let uuid = UUID(uuidString: sessionId)
-        let sessionTitle: String
-        if let uuid, let controller = TabManager.shared.findController(for: uuid) {
-            sessionTitle = controller.session.title
-        } else {
-            sessionTitle = "Claude Code"
-        }
+        let controller = uuid.flatMap { TabManager.shared.findController(for: $0) }
+        let sessionTitle = controller?.session.title ?? "Claude Code"
 
         switch event {
         case "stop":
             NotificationManager.shared.postTaskCompleted(sessionTitle: sessionTitle, sessionId: sessionId)
         case "notification":
+            controller?.markNeedsAttention()
             NotificationManager.shared.postNeedsAttention(sessionTitle: sessionTitle, sessionId: sessionId, message: message ?? "Needs your attention")
         default:
             logger.debug("Unknown hook event: \(event)")
@@ -175,28 +205,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Window Menu Delegate (assign Cmd+N shortcuts to system tab items)
-
-extension AppDelegate: NSMenuDelegate {
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        guard let keyWindow = NSApp.keyWindow,
-              let tabGroup = keyWindow.tabGroup
-        else { return }
-
-        let tabWindows = tabGroup.windows
-        var tabIndex = 0
-
-        for item in menu.items {
-            // System-added tab items have their target set to the window
-            guard let target = item.target as? NSWindow,
-                  tabWindows.contains(target)
-            else { continue }
-
-            if tabIndex < 9 {
-                item.keyEquivalent = "\(tabIndex + 1)"
-                item.keyEquivalentModifierMask = .command
-            }
-            tabIndex += 1
-        }
-    }
-}
