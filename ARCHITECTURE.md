@@ -1,0 +1,210 @@
+# Sessylph Architecture
+
+Internal architecture documentation for developers.
+
+## High-Level Overview
+
+```
+┌─────────────────────────────────────────────────┐
+│  Sessylph.app                                   │
+│                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │  Tab 1   │  │  Tab 2   │  │  Tab 3   │ ...  │
+│  │ (Window) │  │ (Window) │  │ (Window) │      │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘      │
+│       │              │              │            │
+│  ┌────┴──────────────┴──────────────┴────┐      │
+│  │         TabManager (singleton)        │      │
+│  └───────────────────┬───────────────────┘      │
+│                      │                           │
+│  ┌───────────────────┴───────────────────┐      │
+│  │  TabWindowController                  │      │
+│  │  ┌─────────────┐ ┌─────────────────┐ │      │
+│  │  │ LauncherView│→│TerminalView     │ │      │
+│  │  │  (SwiftUI)  │ │  (SwiftTerm)    │ │      │
+│  │  └─────────────┘ └────────┬────────┘ │      │
+│  └────────────────────────────┼──────────┘      │
+│                               │                  │
+│  ┌────────────────────────────┴──────────┐      │
+│  │          TmuxManager                  │      │
+│  │  create / attach / kill / query       │      │
+│  └────────────────────────────┬──────────┘      │
+│                               │                  │
+└───────────────────────────────┼──────────────────┘
+                                │
+                    ┌───────────┴───────────┐
+                    │  tmux server          │
+                    │  sessylph-XXXXXXXX    │ ← one session per tab
+                    │  → claude (CLI)       │
+                    └───────────────────────┘
+```
+
+## Directory Structure
+
+```
+Sources/
+├── Sessylph/
+│   ├── App/              AppDelegate, main, Info.plist
+│   ├── Launcher/         LauncherView (SwiftUI directory picker + options)
+│   ├── Models/           Session, SessionStore, ClaudeCodeOptions
+│   ├── Notifications/    NotificationManager, HookSettingsGenerator
+│   ├── Resources/        Assets
+│   ├── Settings/         SettingsWindow, GeneralSettingsView, SessionConfigSheet
+│   ├── Tabs/             TabManager, TabWindowController
+│   ├── Terminal/         TerminalViewController (SwiftTerm host)
+│   ├── Tmux/             TmuxManager
+│   └── Utilities/        ClaudeCLI, EnvironmentBuilder, Defaults, ShellQuote, ImagePasteHelper
+└── SessylphNotifier/
+    └── main.swift         Bundled CLI for hook → DistributedNotification bridge
+```
+
+## Core Components
+
+### AppDelegate
+
+Entry point. Responsible for:
+- Menu bar setup (File, Edit, Window, Settings + Cmd+1–9 tab switching)
+- DistributedNotificationCenter listener for hook events
+- Notification permission request
+- tmux server configuration (one-time)
+- Orphaned session reattachment on startup
+- Quit flow with confirmation alerts
+
+### TabManager (singleton, @MainActor)
+
+Central registry of all open `TabWindowController` instances.
+
+- `newTab()` / `newTab(directory:)` — Create launcher or pre-filled tabs
+- `reattachOrphanedSessions()` — Restore running tmux sessions on app restart
+- `findController(for:)` — Locate controller by Session ID
+- `bringToFront()` — Navigate to a specific tab
+- `saveActiveSessionId()` / `restoreActiveTab()` — Persist active tab across restarts
+
+### TabWindowController (@MainActor)
+
+One per tab. Manages the lifecycle from launcher → terminal.
+
+**Two UI modes:**
+1. **Launcher** — SwiftUI `LauncherView` for directory selection and Claude options
+2. **Terminal** — `TerminalViewController` attached to a tmux session
+
+**Launch flow:**
+```
+User picks directory + options in LauncherView
+  → TmuxManager.createSession(name, directory)
+  → HookSettingsGenerator.generate(sessionId) → /tmp/.../hooks-{id}.json
+  → ClaudeCodeOptions.buildCommand() → full CLI string
+  → TmuxManager.launchClaude(sessionName, command)
+  → Switch to TerminalViewController (tmux attach)
+```
+
+**Title polling:** Every 2 seconds, queries tmux pane title and parses Claude Code's status emoji:
+- `✳` (U+2733) → idle
+- Braille spinner (U+2800–U+28FF) → working
+
+### TerminalViewController
+
+Hosts SwiftTerm's `LocalProcessTerminalView`, attaching to tmux via `tmux attach-session -t {name}`.
+
+**Event handling (via NSEvent monitors):**
+- Shift+Enter → sends literal newline (LF)
+- Cmd+V → image paste via `ImagePasteHelper`
+- Mouse drag release → auto-copy selection
+- URL click detection → open in browser
+- Scroll wheel → forwarded to tmux mouse protocol
+
+**TerminalProcessDelegate** — Bridge class (`@unchecked Sendable`) that forwards SwiftTerm's nonisolated delegate callbacks to `@MainActor` via `Task`.
+
+### TmuxManager (Sendable)
+
+All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API.
+
+- **Session lifecycle:** create, configure, kill
+- **Claude launch:** `send-keys` to session
+- **Queries:** list sessions, get pane title, get current path
+- **Server config:** Extended keys, CSI u, scroll bindings, window size "latest"
+- **Session naming:** `sessylph-{first 8 chars of UUID}`
+
+### Models
+
+**Session** (Identifiable, Codable, Sendable)
+- `id`, `directory`, `options`, `tmuxSessionName`, `title`, `isRunning`, timestamps
+
+**ClaudeCodeOptions** (Codable, Sendable)
+- Model selection, permission modes, tool allow/deny lists, session flags, budget, system prompt, MCP configs
+- `buildCommand()` — Constructs the full `claude` CLI invocation
+
+**SessionStore** (@MainActor singleton)
+- Persists `[Session]` to `~/Library/Application Support/sh.saqoo.Sessylph/sessions.json`
+
+### Notifications
+
+```
+Claude Code hook fires
+  → sessylph-notifier {sessionId} {event}    (bundled CLI)
+  → reads stdin (hook context JSON)
+  → DistributedNotificationCenter.post("sh.saqoo.Sessylph.hookEvent")
+
+AppDelegate listener
+  → extracts sessionId, event, message
+  → TabWindowController.markNeedsAttention()
+  → NotificationManager.postNeedsAttention()
+  → UNUserNotificationCenter alert (if session not in foreground)
+
+User clicks notification
+  → TabManager.bringToFront(sessionId)
+```
+
+**HookSettingsGenerator** — Creates per-session JSON config at `/tmp/sh.saqoo.Sessylph/hooks-{id}.json` defining two hooks:
+1. **Stop hook** — Claude completed a task
+2. **Notification hook** — Claude needs permission
+
+**SessylphNotifier** (separate build target, bundled in .app) — Lightweight CLI that reads stdin and posts a DistributedNotification. Decouples Claude Code hooks from the main app process.
+
+### Settings & Preferences
+
+**Defaults** — Static keys for `UserDefaults`:
+- General: default model, permission mode
+- Appearance: font name, font size (10–24pt)
+- Notifications: enabled, notify on stop, notify on permission
+- Launcher state: persisted between launches
+- Alerts: suppress close/quit confirmations
+- Session state: active session ID, recent directories
+
+**SettingsWindow** — Modal SwiftUI window with `GeneralSettingsView` (model picker, permission mode, notification toggles, font slider, Claude version display).
+
+### Utilities
+
+| Utility | Purpose |
+|---------|---------|
+| `ClaudeCLI` | Resolves `claude` and `tmux` binary paths dynamically |
+| `EnvironmentBuilder` | Captures login shell environment for process spawning |
+| `ShellQuote` | Safe shell argument quoting |
+| `ImagePasteHelper` | Extracts images from pasteboard, saves to temp, returns path |
+
+## Concurrency Model
+
+- **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow
+- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions, TerminalProcessDelegate
+- **Bridge pattern:** SwiftTerm's nonisolated callbacks → `Task { @MainActor in ... }` via TerminalProcessDelegate
+
+## Session Persistence & Reattachment
+
+Sessions survive app restart because tmux sessions persist independently:
+
+```
+App launches
+  → TmuxManager.listSessylphSessions() → running tmux sessions
+  → Compare with SessionStore (saved JSON)
+  → For each orphan (tmux alive, not in store):
+      → Create TabWindowController in terminal mode
+      → Attach to existing tmux session
+  → Restore previously active tab
+```
+
+## Window Management
+
+- Native macOS tabbing via `NSWindow.tabbingMode = .preferred`
+- Frame autosave: `NSWindowController.windowFrameAutosaveName = "SessylphTerminalWindow"`
+- Tab order: `addTabbedWindow(newWindow, ordered: .above)` relative to last added window
+- Cmd+1–9 switching: `NSEvent.addLocalMonitorForEvents(matching: .keyDown)`
