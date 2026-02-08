@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        ImagePasteHelper.cleanupOldTempImages()
         logger.info("Sessylph launched")
     }
 
