@@ -25,6 +25,7 @@ final class TerminalViewController: NSViewController {
     nonisolated(unsafe) private var keyEventMonitor: Any?
     nonisolated(unsafe) private var mouseUpMonitor: Any?
     nonisolated(unsafe) private var mouseMovedMonitor: Any?
+    nonisolated(unsafe) private var scrollWheelMonitor: Any?
     private var isOverURL = false
     private var urlUnderlineLayer: CALayer?
 
@@ -82,6 +83,7 @@ final class TerminalViewController: NSViewController {
 
         installShiftEnterMonitor()
         installMouseMonitors()
+        installScrollWheelMonitor()
 
         // Start tmux attach
         startTmuxAttach()
@@ -109,6 +111,9 @@ final class TerminalViewController: NSViewController {
         }
         if let mouseMovedMonitor {
             NSEvent.removeMonitor(mouseMovedMonitor)
+        }
+        if let scrollWheelMonitor {
+            NSEvent.removeMonitor(scrollWheelMonitor)
         }
     }
 
@@ -189,6 +194,52 @@ final class TerminalViewController: NSViewController {
                 self.handleMouseMovedOrExited(event)
             }
             return event
+        }
+    }
+
+    // MARK: - Scroll Wheel → tmux
+
+    /// Intercepts scroll wheel events and forwards them to tmux via the
+    /// terminal's mouse protocol, so tmux can enter copy-mode and scroll
+    /// through its scrollback buffer. Without this, scrolling does nothing
+    /// because tmux runs in the alternate screen buffer and SwiftTerm's
+    /// native scrollback is empty.
+    private func installScrollWheelMonitor() {
+        scrollWheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let eventWindow = event.window, event.deltaY != 0 else { return event }
+            let windowID = ObjectIdentifier(eventWindow)
+
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self,
+                      let myWindow = self.view.window,
+                      ObjectIdentifier(myWindow) == windowID else { return false }
+
+                let terminal = self.terminalView.getTerminal()
+
+                // Only forward when tmux has mouse mode enabled and we're in alternate screen
+                guard terminal.mouseMode != .off else { return false }
+
+                let (col, row) = self.gridPosition(from: event)
+                // buttonFlags: 64 = wheel up, 65 = wheel down
+                let buttonFlags = event.deltaY > 0 ? 64 : 65
+                // Each event makes tmux scroll ~3 lines, so dampen the count.
+                // Trackpad deltaY can be very large; discrete mouse wheels
+                // typically send ±1..3.
+                let rawDelta = abs(event.deltaY)
+                let lines: Int
+                if event.hasPreciseScrollingDeltas {
+                    // Trackpad: 1 event per ~2px of delta
+                    lines = max(1, Int(rawDelta / 2))
+                } else {
+                    // Discrete mouse wheel: 5 events per tick
+                    lines = max(1, Int(rawDelta) * 5)
+                }
+                for _ in 0..<lines {
+                    terminal.sendEvent(buttonFlags: buttonFlags, x: col, y: row)
+                }
+                return true
+            }
+            return handled ? nil : event
         }
     }
 
