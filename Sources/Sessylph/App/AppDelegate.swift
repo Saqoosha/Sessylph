@@ -234,9 +234,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch event {
         case "stop":
             NotificationManager.shared.postTaskCompleted(sessionTitle: sessionTitle, sessionId: sessionId)
-        case "notification":
+        case "permission_prompt":
             controller?.markNeedsAttention()
-            NotificationManager.shared.postNeedsAttention(sessionTitle: sessionTitle, sessionId: sessionId, message: message ?? "Needs your attention")
+            NotificationManager.shared.postPermissionRequired(sessionTitle: sessionTitle, sessionId: sessionId, message: message ?? "Needs your permission")
+        case "idle_prompt":
+            NotificationManager.shared.postIdleReminder(sessionTitle: sessionTitle, sessionId: sessionId)
         default:
             logger.warning("Unknown hook event: \(event, privacy: .public)")
         }

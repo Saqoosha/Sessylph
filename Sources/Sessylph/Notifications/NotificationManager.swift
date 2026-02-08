@@ -28,9 +28,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(title: "✅ Task Completed", body: sessionTitle, sessionId: sessionId)
     }
 
-    func postNeedsAttention(sessionTitle: String, sessionId: String, message: String) {
+    func postPermissionRequired(sessionTitle: String, sessionId: String, message: String) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
-        post(title: "⚠️ Needs Attention", body: "\(sessionTitle): \(message)", sessionId: sessionId)
+        post(title: "❓ Permission Required", body: "\(sessionTitle): \(message)", sessionId: sessionId)
+    }
+
+    func postIdleReminder(sessionTitle: String, sessionId: String) {
+        guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
+        post(title: "⏳ Waiting for Input", body: sessionTitle, sessionId: sessionId)
     }
 
     // MARK: - Private

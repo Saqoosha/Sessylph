@@ -20,15 +20,25 @@ enum HookSettingsGenerator {
                 ],
                 "Notification": [
                     [
-                        "matcher": "",
+                        "matcher": "permission_prompt",
                         "hooks": [
                             [
                                 "type": "command",
-                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) notification",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) permission_prompt",
                                 "timeout": 5,
                             ]
                         ],
-                    ]
+                    ],
+                    [
+                        "matcher": "idle_prompt",
+                        "hooks": [
+                            [
+                                "type": "command",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) idle_prompt",
+                                "timeout": 5,
+                            ]
+                        ],
+                    ],
                 ],
             ]
         ]
