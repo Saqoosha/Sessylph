@@ -128,11 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Distributed Notification Listener (from sessylph-notifier)
 
-    private func setupDistributedNotificationListener() {
+    private nonisolated func setupDistributedNotificationListener() {
         DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("sh.saqoo.Sessylph.hookEvent"),
             object: nil,
-            queue: .main
+            queue: nil
         ) { [weak self] notification in
             // Extract Sendable values before crossing isolation boundary
             let sessionId = notification.userInfo?["sessionId"] as? String
@@ -148,8 +148,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let sessionId, let event else { return }
 
         let uuid = UUID(uuidString: sessionId)
-        let sessionTitle = TabManager.shared.windowControllers
-            .first(where: { $0.session.id == uuid })?.session.title ?? "Claude Code"
+        let sessionTitle: String
+        if let uuid, let controller = TabManager.shared.findController(for: uuid) {
+            sessionTitle = controller.session.title
+        } else {
+            sessionTitle = "Claude Code"
+        }
 
         switch event {
         case "stop":
