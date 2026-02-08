@@ -440,6 +440,17 @@ final class TerminalViewController: NSViewController {
         guard terminalView.process.running else { return }
         let fd = terminalView.process.childfd
 
+        // Check if pty size already matches what SwiftTerm expects.
+        // If they match, no other tmux client changed the size while
+        // we were in the background — skip the disruptive refresh.
+        var current = winsize()
+        if ioctl(fd, TIOCGWINSZ, &current) == 0 {
+            let expected = terminalView.getWindowSize()
+            if current.ws_col == expected.ws_col && current.ws_row == expected.ws_row {
+                return
+            }
+        }
+
         // Bump size by 1 row to force SIGWINCH (macOS suppresses it
         // when the size is unchanged)
         var bumped = terminalView.getWindowSize()
