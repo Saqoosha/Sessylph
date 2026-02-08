@@ -96,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: "Show All Windows", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        windowMenu.delegate = self
         let windowMenuItem = NSMenuItem()
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
@@ -170,6 +171,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func requestNotificationPermission() {
         Task {
             await NotificationManager.shared.requestPermission()
+        }
+    }
+}
+
+// MARK: - Window Menu Delegate (assign Cmd+N shortcuts to system tab items)
+
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard let keyWindow = NSApp.keyWindow,
+              let tabGroup = keyWindow.tabGroup
+        else { return }
+
+        let tabWindows = tabGroup.windows
+        var tabIndex = 0
+
+        for item in menu.items {
+            // System-added tab items have their target set to the window
+            guard let target = item.target as? NSWindow,
+                  tabWindows.contains(target)
+            else { continue }
+
+            if tabIndex < 9 {
+                item.keyEquivalent = "\(tabIndex + 1)"
+                item.keyEquivalentModifierMask = .command
+            }
+            tabIndex += 1
         }
     }
 }
