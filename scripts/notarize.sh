@@ -19,16 +19,18 @@ ZIP_PATH="${WORK_DIR}/${APP_NAME}.zip"
 
 echo "=== Signing $APP_NAME.app ==="
 
-# Sign all nested frameworks and libraries first
-find "$APP_PATH" -type f -name "*.dylib" -o -name "*.framework" | while read -r item; do
-  codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$item" 2>/dev/null || true
+# Sign all nested executables, frameworks, and libraries first (inside-out)
+find "$APP_PATH" -type f \( -perm +111 -o -name "*.dylib" \) ! -path "*/MacOS/${APP_NAME}" | while read -r item; do
+  echo "  Signing nested: $(basename "$item") ($(dirname "$item" | sed "s|.*\.app/||"))"
+  codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$item"
 done
 
-# Sign the main app bundle
+# Sign the main app bundle last
+echo "  Signing app bundle: $APP_NAME.app"
 codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$APP_PATH"
 
 # Verify signature
-codesign --verify --verbose "$APP_PATH"
+codesign --verify --deep --verbose "$APP_PATH"
 echo "Signature verified."
 
 echo "=== Creating ZIP for notarization ==="
