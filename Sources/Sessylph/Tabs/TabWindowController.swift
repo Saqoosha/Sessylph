@@ -70,6 +70,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             logger.error("Window is nil in showLauncher")
             return
         }
+        let savedFrame = window.frame
+
         var launcherView = LauncherView()
         launcherView.onLaunch = { [weak self] directory, options in
             guard let self else { return }
@@ -80,10 +82,16 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let hostingController = NSHostingController(
             rootView: launcherView.frame(maxWidth: .infinity, maxHeight: .infinity)
         )
+        // Prevent NSHostingController from auto-resizing the window to fit SwiftUI content
+        hostingController.sizingOptions = []
         window.contentViewController = hostingController
+
         // Reset content size constraints so NSHostingController doesn't lock the window
         window.contentMinSize = NSSize(width: 480, height: 320)
         window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+
+        // Restore frame after content swap to prevent window from shrinking
+        window.setFrame(savedFrame, display: false)
     }
 
     private func showTerminal() {
