@@ -100,19 +100,4 @@ struct ClaudeCodeOptions: Codable, Sendable {
         return parts.joined(separator: " ")
     }
 
-    // MARK: - Private
-
-    /// Wraps a string in single quotes if it contains shell-sensitive characters.
-    private func shellQuote(_ value: String) -> String {
-        // If the value is safe (alphanumeric, hyphens, dots, underscores, slashes),
-        // no quoting is needed.
-        let safeCharacters = CharacterSet.alphanumerics
-            .union(CharacterSet(charactersIn: "-._/~+:@"))
-        if value.unicodeScalars.allSatisfy({ safeCharacters.contains($0) }) {
-            return value
-        }
-        // Escape existing single quotes and wrap in single quotes.
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
-    }
 }

@@ -31,6 +31,7 @@ targets:
       - target: SessylphNotifier
     postCompileScripts:
       - script: |
+          set -e
           cp "${BUILT_PRODUCTS_DIR}/sessylph-notifier" "${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/MacOS/"
         name: "Embed sessylph-notifier"
         basedOnDependencyAnalysis: false

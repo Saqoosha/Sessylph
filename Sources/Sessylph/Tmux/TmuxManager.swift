@@ -7,6 +7,11 @@ final class TmuxManager: Sendable {
     static let shared = TmuxManager()
     static let sessionPrefix = "sessylph"
 
+    /// Generates a tmux session name from a session UUID.
+    static func sessionName(for id: UUID) -> String {
+        "\(sessionPrefix)-\(id.uuidString.prefix(8).lowercased())"
+    }
+
     enum TmuxError: Error, LocalizedError {
         case nonZeroExit(Int32, stderr: String)
         case outputDecodingFailed
