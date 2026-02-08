@@ -13,6 +13,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     var needsAttention: Bool = false
     private var terminalVC: TerminalViewController?
     private var lastTaskDescription: String = ""
+    private var titlePollTimer: Timer?
+    private var lastPolledTitle: String?
 
     private static let defaultSize = NSSize(width: 900, height: 600)
 
@@ -42,6 +44,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         restoreWindowFrame()
 
         showTerminal()
+        startTitlePolling()
     }
 
     private func restoreWindowFrame() {
@@ -178,10 +181,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             return
         }
 
-        let dirName = session.directory.lastPathComponent
-        window?.title = "✅ \(dirName)"
-        window?.tab.title = "✅ \(dirName)"
+        applyTitles(emoji: ClaudeState.idle.emoji)
         showTerminal()
+        startTitlePolling()
 
         logger.info("Launched Claude in \(directory.path)")
     }
@@ -189,13 +191,15 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     // MARK: - TerminalViewControllerDelegate
 
     func terminalDidUpdateTitle(_ vc: TerminalViewController, title: String) {
-        let (state, taskDesc) = Self.parseClaudeTitle(title)
+        lastPolledTitle = title // sync with polling to avoid duplicate processing
+        updateTitle(from: title)
+    }
 
-        // Clear needsAttention when Claude starts working again
+    private func updateTitle(from rawTitle: String) {
+        let (state, taskDesc) = Self.parseClaudeTitle(rawTitle)
         if state == .working {
             needsAttention = false
         }
-
         lastTaskDescription = taskDesc
         applyTitles(emoji: needsAttention ? "⚠️" : state.emoji)
     }
@@ -206,18 +210,43 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         applyTitles(emoji: "⚠️")
     }
 
+    // MARK: - Title Polling
+
+    private func startTitlePolling() {
+        // Immediate first poll
+        Task { await pollPaneTitle() }
+        // Then poll every 2 seconds
+        titlePollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.pollPaneTitle()
+            }
+        }
+    }
+
+    private func stopTitlePolling() {
+        titlePollTimer?.invalidate()
+        titlePollTimer = nil
+    }
+
+    private func pollPaneTitle() async {
+        guard session.isRunning else { return }
+        guard let title = await TmuxManager.shared.getPaneTitle(sessionName: session.tmuxSessionName) else { return }
+        guard title != lastPolledTitle else { return }
+        lastPolledTitle = title
+        updateTitle(from: title)
+    }
+
     private func applyTitles(emoji: String) {
-        let dirName = session.directory.lastPathComponent
-        let newTabTitle = "\(emoji) \(dirName)"
-        let newWindowTitle = lastTaskDescription.isEmpty
-            ? newTabTitle
+        let dirName = session.title
+        let title = lastTaskDescription.isEmpty
+            ? "\(emoji) \(dirName)"
             : "\(emoji) \(dirName) — \(lastTaskDescription)"
 
-        if window?.tab.title != newTabTitle {
-            window?.tab.title = newTabTitle
+        if window?.tab.title != title {
+            window?.tab.title = title
         }
-        if window?.title != newWindowTitle {
-            window?.title = newWindowTitle
+        if window?.title != title {
+            window?.title = title
         }
     }
 
@@ -244,7 +273,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     /// - `⠂ Task description` / `⠐ Task description` — working (braille spinner)
     private static func parseClaudeTitle(_ rawTitle: String) -> (state: ClaudeState, taskDescription: String) {
         guard let first = rawTitle.unicodeScalars.first else {
-            return (.idle, rawTitle)
+            return (.unknown, "")
         }
 
         // Braille spinner (U+2800–U+28FF) → working
@@ -274,6 +303,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
+        stopTitlePolling()
         TabManager.shared.windowControllerDidClose(self)
     }
 }

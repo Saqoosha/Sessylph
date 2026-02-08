@@ -38,6 +38,21 @@ final class TmuxManager: Sendable {
         ])
     }
 
+    /// Configures tmux server-level options that only need to be set once
+    /// per server lifetime (e.g. extended keys for CSI u / kitty protocol).
+    /// Best-effort: failures are logged but don't block session launch.
+    func configureServerOptions() async {
+        try? await runTmux(args: [
+            "set-option", "-s", "extended-keys", "on",
+        ])
+        try? await runTmux(args: [
+            "set-option", "-s", "extended-keys-format", "csi-u",
+        ])
+        try? await runTmux(args: [
+            "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+        ])
+    }
+
     /// Configures a tmux session for title passthrough so terminal title
     /// escape sequences from Claude Code reach the outer terminal (SwiftTerm).
     /// Best-effort: failures are logged but don't block session launch.
@@ -52,20 +67,6 @@ final class TmuxManager: Sendable {
         // Allow passthrough of escape sequences (tmux 3.3+, ignore if unsupported)
         try? await runTmux(args: [
             "set-option", "-t", name, "allow-passthrough", "on",
-        ])
-
-        // Enable extended keys (CSI u / kitty keyboard protocol) so that
-        // Shift+Enter reaches Claude Code as a distinct key from plain Enter.
-        // Server-level options: tell tmux our outer terminal supports extkeys
-        // and to always forward them using the CSI u format.
-        try? await runTmux(args: [
-            "set-option", "-s", "extended-keys", "on",
-        ])
-        try? await runTmux(args: [
-            "set-option", "-s", "extended-keys-format", "csi-u",
-        ])
-        try? await runTmux(args: [
-            "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
         ])
     }
 
@@ -111,6 +112,34 @@ final class TmuxManager: Sendable {
         } catch {
             logger.warning("Failed to list tmux sessions: \(error.localizedDescription)")
             return []
+        }
+    }
+
+    /// Returns the current pane title for the given session.
+    func getPaneTitle(sessionName: String) async -> String? {
+        do {
+            let output = try await runTmux(args: [
+                "display-message", "-t", sessionName, "-p", "#{pane_title}",
+            ])
+            let title = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            return title.isEmpty ? nil : title
+        } catch {
+            logger.debug("Failed to get pane title for \(sessionName): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Returns the current working directory of the active pane.
+    func getPaneCurrentPath(sessionName: String) async -> String? {
+        do {
+            let output = try await runTmux(args: [
+                "display-message", "-t", sessionName, "-p", "#{pane_current_path}",
+            ])
+            let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            return path.isEmpty ? nil : path
+        } catch {
+            logger.debug("Failed to get pane path for \(sessionName): \(error.localizedDescription)")
+            return nil
         }
     }
 

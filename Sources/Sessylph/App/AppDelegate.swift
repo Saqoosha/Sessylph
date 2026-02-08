@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         requestNotificationPermission()
 
         Task {
+            await TmuxManager.shared.configureServerOptions()
             await TabManager.shared.reattachOrphanedSessions()
             if TabManager.shared.windowControllers.isEmpty {
                 TabManager.shared.newTab()
@@ -35,12 +36,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Save sessions BEFORE windows close so the store isn't emptied
+        // by windowControllerDidClose removing each session individually.
+        TabManager.shared.isTerminating = true
+        SessionStore.shared.save()
+        return .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         if let monitor = tabSwitchMonitor {
             NSEvent.removeMonitor(monitor)
             tabSwitchMonitor = nil
         }
-        SessionStore.shared.save()
         logger.info("Sessylph terminating")
     }
 

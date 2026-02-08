@@ -14,6 +14,11 @@ final class TabManager {
 
     private(set) var windowControllers: [TabWindowController] = []
 
+    /// Set to `true` during app termination so that closing windows
+    /// does not remove sessions from the store (they should persist
+    /// for reattachment on next launch).
+    var isTerminating = false
+
     private init() {}
 
     // MARK: - Tab Lifecycle
@@ -96,15 +101,24 @@ final class TabManager {
         }
 
         for name in existingNames where !trackedNames.contains(name) && !reattachedNames.contains(name) {
-            var session = Session(directory: URL(fileURLWithPath: NSHomeDirectory()))
+            // Resolve actual working directory from tmux pane
+            let dir: URL
+            if let path = await TmuxManager.shared.getPaneCurrentPath(sessionName: name) {
+                dir = URL(fileURLWithPath: path)
+            } else {
+                dir = URL(fileURLWithPath: NSHomeDirectory())
+            }
+            var session = Session(directory: dir)
             session.tmuxSessionName = name
-            session.title = name
             session.isRunning = true
             orphans.append(session)
         }
 
         for session in orphans {
             logger.info("Reattaching orphaned tmux session: \(session.tmuxSessionName)")
+
+            // Ensure tmux title passthrough is configured for this session
+            await TmuxManager.shared.configureSession(name: session.tmuxSessionName)
 
             let controller = TabWindowController(session: session)
             windowControllers.append(controller)
@@ -145,6 +159,10 @@ final class TabManager {
 
     /// Finds a controller by session UUID, falling back to tmux session name match
     /// for reattached sessions whose UUID may differ from the hook settings.
+    ///
+    /// Note: The tmux name fallback uses an 8-character UUID prefix, which has
+    /// a theoretical collision risk (~1 in 4 billion). Acceptable for typical
+    /// tab counts; reconsider if session volume grows significantly.
     func findController(for sessionId: UUID) -> TabWindowController? {
         // Exact UUID match
         if let controller = windowControllers.first(where: { $0.session.id == sessionId }) {
@@ -159,8 +177,10 @@ final class TabManager {
 
     func windowControllerDidClose(_ controller: TabWindowController) {
         windowControllers.removeAll { $0 === controller }
-        SessionStore.shared.remove(id: controller.session.id)
-        HookSettingsGenerator.cleanup(sessionId: controller.session.id.uuidString)
+        if !isTerminating {
+            SessionStore.shared.remove(id: controller.session.id)
+            HookSettingsGenerator.cleanup(sessionId: controller.session.id.uuidString)
+        }
         logger.info("Tab closed (\(self.windowControllers.count) remaining)")
     }
 }
