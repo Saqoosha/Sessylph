@@ -10,7 +10,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     // MARK: - Properties
 
     var session: Session
+    var needsAttention: Bool = false
     private var terminalVC: TerminalViewController?
+    private var lastTaskDescription: String = ""
 
     private static let defaultSize = NSSize(width: 900, height: 600)
 
@@ -176,8 +178,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             return
         }
 
-        window?.title = session.title
-        window?.tab.title = session.title
+        let dirName = session.directory.lastPathComponent
+        window?.title = "✅ \(dirName)"
+        window?.tab.title = "✅ \(dirName)"
         showTerminal()
 
         logger.info("Launched Claude in \(directory.path)")
@@ -186,9 +189,77 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     // MARK: - TerminalViewControllerDelegate
 
     func terminalDidUpdateTitle(_ vc: TerminalViewController, title: String) {
-        session.title = title
-        window?.title = title
-        window?.tab.title = title
+        let (state, taskDesc) = Self.parseClaudeTitle(title)
+
+        // Clear needsAttention when Claude starts working again
+        if state == .working {
+            needsAttention = false
+        }
+
+        lastTaskDescription = taskDesc
+        applyTitles(emoji: needsAttention ? "⚠️" : state.emoji)
+    }
+
+    /// Called by AppDelegate when a hook "notification" event is received.
+    func markNeedsAttention() {
+        needsAttention = true
+        applyTitles(emoji: "⚠️")
+    }
+
+    private func applyTitles(emoji: String) {
+        let dirName = session.directory.lastPathComponent
+        let newTabTitle = "\(emoji) \(dirName)"
+        let newWindowTitle = lastTaskDescription.isEmpty
+            ? newTabTitle
+            : "\(emoji) \(dirName) — \(lastTaskDescription)"
+
+        if window?.tab.title != newTabTitle {
+            window?.tab.title = newTabTitle
+        }
+        if window?.title != newWindowTitle {
+            window?.title = newWindowTitle
+        }
+    }
+
+    // MARK: - Claude Code Title Parsing
+
+    enum ClaudeState {
+        case idle
+        case working
+        case unknown
+
+        var emoji: String {
+            switch self {
+            case .idle: "✅"
+            case .working: "🔄"
+            case .unknown: "💻"
+            }
+        }
+    }
+
+    /// Parses Claude Code's terminal title and maps prefixes to state.
+    ///
+    /// Known formats:
+    /// - `✳ Claude Code` — idle/ready
+    /// - `⠂ Task description` / `⠐ Task description` — working (braille spinner)
+    private static func parseClaudeTitle(_ rawTitle: String) -> (state: ClaudeState, taskDescription: String) {
+        guard let first = rawTitle.unicodeScalars.first else {
+            return (.idle, rawTitle)
+        }
+
+        // Braille spinner (U+2800–U+28FF) → working
+        if first.value >= 0x2800, first.value <= 0x28FF {
+            let rest = String(rawTitle.dropFirst()).trimmingCharacters(in: .whitespaces)
+            return (.working, rest)
+        }
+
+        // ✳ (U+2733 Eight Spoked Asterisk) → idle/ready
+        if first == Unicode.Scalar(0x2733) {
+            let rest = String(rawTitle.dropFirst()).trimmingCharacters(in: .whitespaces)
+            return (.idle, rest)
+        }
+
+        return (.unknown, rawTitle)
     }
 
     func terminalProcessDidTerminate(_ vc: TerminalViewController, exitCode: Int32?) {

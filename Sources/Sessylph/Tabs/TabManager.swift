@@ -78,28 +78,41 @@ final class TabManager {
 
     func reattachOrphanedSessions() async {
         let existingNames = await TmuxManager.shared.listSessylphSessions()
+        let existingSet = Set(existingNames)
         let trackedNames = Set(windowControllers.map(\.session.tmuxSessionName))
         let savedSessions = SessionStore.shared.sessions
 
-        for name in existingNames where !trackedNames.contains(name) {
-            logger.info("Reattaching orphaned tmux session: \(name)")
+        // Build ordered list: saved sessions first (preserves tab order),
+        // then any unknown tmux sessions not in the store.
+        var orphans: [Session] = []
+        var reattachedNames = Set<String>()
 
-            // Try to restore session info from SessionStore
-            var session: Session
-            if let saved = savedSessions.first(where: { $0.tmuxSessionName == name }) {
-                session = saved
-            } else {
-                session = Session(directory: URL(fileURLWithPath: NSHomeDirectory()))
-                session.tmuxSessionName = name
-                session.title = name
-            }
+        for saved in savedSessions where !trackedNames.contains(saved.tmuxSessionName) {
+            guard existingSet.contains(saved.tmuxSessionName) else { continue }
+            var session = saved
             session.isRunning = true
+            orphans.append(session)
+            reattachedNames.insert(saved.tmuxSessionName)
+        }
+
+        for name in existingNames where !trackedNames.contains(name) && !reattachedNames.contains(name) {
+            var session = Session(directory: URL(fileURLWithPath: NSHomeDirectory()))
+            session.tmuxSessionName = name
+            session.title = name
+            session.isRunning = true
+            orphans.append(session)
+        }
+
+        for session in orphans {
+            logger.info("Reattaching orphaned tmux session: \(session.tmuxSessionName)")
 
             let controller = TabWindowController(session: session)
             windowControllers.append(controller)
 
-            if let first = windowControllers.first, first !== controller,
-               let existingWindow = first.window,
+            // Add to the last controller's window so tab order is preserved.
+            let previousControllers = windowControllers.dropLast()
+            if let last = previousControllers.last,
+               let existingWindow = last.window,
                let newWindow = controller.window
             {
                 existingWindow.addTabbedWindow(newWindow, ordered: .above)
@@ -110,7 +123,6 @@ final class TabManager {
         }
 
         // Clean up saved sessions whose tmux sessions no longer exist
-        let existingSet = Set(existingNames)
         for saved in savedSessions where !existingSet.contains(saved.tmuxSessionName) {
             SessionStore.shared.remove(id: saved.id)
         }
