@@ -13,7 +13,7 @@ html, body {
     position: absolute;
     top: 4px;
     left: 16px;
-    right: 4px;
+    right: 2px;
     bottom: 4px;
 }
 
@@ -33,6 +33,6 @@ html, body {
 
 .xterm .xterm-scrollable-element > .scrollbar > .slider {
     border-radius: 4px !important;
-    left: 1px !important;
-    width: 6px !important;
+    left: 0 !important;
+    width: 8px !important;
 }
