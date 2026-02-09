@@ -35,7 +35,7 @@ User opens new tab
         ↓
   TmuxManager.createAndLaunchSession()  ← single tmux invocation
         ↓
-  TerminalViewController (SwiftTerm attaches to tmux)
+  TerminalViewController (xterm.js/WKWebView attaches to tmux)
 
 Notifications:
   Claude Code hook → sessylph-notifier CLI
@@ -83,7 +83,7 @@ Sources/
 │   ├── Notifications/     # Hook integration + desktop notifications
 │   ├── Settings/          # Preferences window (SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController
-│   ├── Terminal/          # SwiftTerm terminal view
+│   ├── Terminal/          # xterm.js terminal view (WKWebView)
 │   ├── Tmux/              # tmux session management
 │   └── Utilities/         # CLI resolvers, environment, helpers
 └── SessylphNotifier/      # Bundled CLI for hook → notification bridge
@@ -91,7 +91,7 @@ Sources/
 
 ## Third-Party Libraries
 
-- [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) — Terminal emulator for Swift
+- [xterm.js](https://github.com/xtermjs/xterm.js) — Terminal emulator for the web (rendered in WKWebView)
 
 ## License
 

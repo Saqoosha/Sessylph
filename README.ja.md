@@ -35,7 +35,7 @@
         ↓
   TmuxManager.createAndLaunchSession()  ← 単一の tmux 呼び出し
         ↓
-  TerminalViewController (SwiftTerm が tmux に接続)
+  TerminalViewController (xterm.js/WKWebView が tmux に接続)
 
 通知:
   Claude Code hook → sessylph-notifier CLI
@@ -83,7 +83,7 @@ Sources/
 │   ├── Notifications/     # Hook連携 + デスクトップ通知
 │   ├── Settings/          # 設定ウィンドウ (SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController
-│   ├── Terminal/          # SwiftTerm ターミナルビュー
+│   ├── Terminal/          # xterm.js ターミナルビュー (WKWebView)
 │   ├── Tmux/              # tmux セッション管理
 │   └── Utilities/         # CLI パス解決, 環境変数, ヘルパー
 └── SessylphNotifier/      # バンドル済み CLI (hook → 通知ブリッジ)
@@ -91,7 +91,7 @@ Sources/
 
 ## 使用ライブラリ
 
-- [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) — Swift 向けターミナルエミュレータ
+- [xterm.js](https://github.com/xtermjs/xterm.js) — Web 向けターミナルエミュレータ (WKWebView で描画)
 
 ## ライセンス
 
