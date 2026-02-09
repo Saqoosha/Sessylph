@@ -233,7 +233,7 @@ final class TmuxManager: Sendable {
     func captureHistory(sessionName: String, lines: Int = 1000) async -> String? {
         do {
             let output = try await runTmux(args: [
-                "capture-pane", "-t", "\(sessionName)", "-p", "-e",
+                "capture-pane", "-t", "\(sessionName)", "-p", "-e", "-J",
                 "-S", "-\(lines)",
             ])
             // Strip trailing blank lines from viewport padding
