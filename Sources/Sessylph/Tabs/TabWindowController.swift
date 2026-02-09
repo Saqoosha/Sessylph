@@ -224,7 +224,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             }
         }
         lastTaskDescription = taskDesc
-        applyTitles(emoji: needsAttention ? "⚠️" : state.emoji)
+        applyTitles(emoji: needsAttention ? "❓" : state.emoji)
     }
 
     private func renameTmuxSession(task: String) {
@@ -247,7 +247,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     /// Called by AppDelegate when a hook "notification" event is received.
     func markNeedsAttention() {
         needsAttention = true
-        applyTitles(emoji: "⚠️")
+        applyTitles(emoji: "❓")
     }
 
     // MARK: - Title Polling
