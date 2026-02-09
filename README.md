@@ -1,3 +1,5 @@
+English | [日本語](README.ja.md)
+
 # Sessylph
 
 <p align="center">
@@ -31,9 +33,7 @@ User opens new tab
         ↓
   LauncherView (pick directory + options)
         ↓
-  TmuxManager.createSession()
-        ↓
-  claude CLI launched in tmux session
+  TmuxManager.createAndLaunchSession()  ← single tmux invocation
         ↓
   TerminalViewController (SwiftTerm attaches to tmux)
 
@@ -45,7 +45,7 @@ Notifications:
   NotificationManager → UNUserNotificationCenter
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed internal documentation.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed internal documentation.
 
 ### Requirements
 
@@ -88,6 +88,10 @@ Sources/
 │   └── Utilities/         # CLI resolvers, environment, helpers
 └── SessylphNotifier/      # Bundled CLI for hook → notification bridge
 ```
+
+## Third-Party Libraries
+
+- [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) — Terminal emulator for Swift
 
 ## License
 

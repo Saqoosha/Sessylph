@@ -66,8 +66,9 @@ Entry point. Responsible for:
 - Menu bar setup (File, Edit, Window, Settings + Cmd+1–9 tab switching)
 - DistributedNotificationCenter listener for hook events
 - Notification permission request
-- tmux server configuration (one-time)
-- Orphaned session reattachment on startup
+- tmux server configuration (one-time, batched single invocation)
+- Orphaned session reattachment on startup (two-phase: windows first, then tmux attach)
+- PTY refresh debounce (only after >1s inactivity to avoid glitches from notification banners)
 - Quit flow with confirmation alerts
 
 ### TabManager (singleton, @MainActor)
@@ -90,12 +91,14 @@ One per tab. Manages the lifecycle from launcher → terminal.
 
 **Launch flow:**
 ```
-User picks directory + options in LauncherView
-  → TmuxManager.createSession(name, directory)
+User clicks "Start Claude" in LauncherView
+  → Button shows spinner, form disabled (immediate feedback)
+  → Tab title updated with ⏳ emoji
   → HookSettingsGenerator.generate(sessionId) → /tmp/.../hooks-{id}.json
   → ClaudeCodeOptions.buildCommand() → full CLI string
-  → TmuxManager.launchClaude(sessionName, command)
-  → Switch to TerminalViewController (tmux attach)
+  → TmuxManager.createAndLaunchSession()  ← single tmux invocation:
+      new-session + set-option×4 + send-keys (was 6 process spawns)
+  → Switch to TerminalViewController → attachToTmux()
 ```
 
 **Title polling:** Every 2 seconds, queries tmux pane title and parses Claude Code's status emoji:
@@ -104,7 +107,7 @@ User picks directory + options in LauncherView
 
 ### TerminalViewController
 
-Hosts SwiftTerm's `LocalProcessTerminalView`, attaching to tmux via `tmux attach-session -t {name}`.
+Hosts SwiftTerm's `LocalProcessTerminalView`, attaching to tmux via `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
 
 **Event handling (via NSEvent monitors):**
 - Shift+Enter → sends literal newline (LF)
@@ -117,12 +120,11 @@ Hosts SwiftTerm's `LocalProcessTerminalView`, attaching to tmux via `tmux attach
 
 ### TmuxManager (Sendable)
 
-All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API.
+All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. Commands are batched using tmux's `;` separator to minimize process spawns.
 
-- **Session lifecycle:** create, configure, kill
-- **Claude launch:** `send-keys` to session
+- **Session lifecycle:** `createAndLaunchSession()` (create + configure + launch in one invocation), `configureSession()` (for reattach), kill
 - **Queries:** list sessions, get pane title, get current path
-- **Server config:** Extended keys, CSI u, scroll bindings, window size "latest"
+- **Server config:** Extended keys, CSI u, scroll bindings, window size "latest" (all batched into single invocation at startup)
 - **Session naming:** `sessylph-{first 8 chars of UUID}`
 
 ### Models
@@ -190,16 +192,17 @@ User clicks notification
 
 ## Session Persistence & Reattachment
 
-Sessions survive app restart because tmux sessions persist independently:
+Sessions survive app restart because tmux sessions persist independently. Reattachment uses a two-phase approach to avoid visible buffer jumps:
 
 ```
 App launches
   → TmuxManager.listSessylphSessions() → running tmux sessions
   → Compare with SessionStore (saved JSON)
-  → For each orphan (tmux alive, not in store):
-      → Create TabWindowController in terminal mode
-      → Attach to existing tmux session
-  → Restore previously active tab
+  → Phase 1: Create all windows and add to tab group (no tmux attach yet)
+      → Windows settle at their final size from frame autosave
+      → Restore previously active tab
+  → Phase 2: Start tmux attachment for all controllers
+      → tmux only sees the correct final window size
 ```
 
 ## Window Management
