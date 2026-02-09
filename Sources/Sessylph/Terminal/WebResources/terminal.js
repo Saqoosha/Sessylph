@@ -79,9 +79,9 @@ function initTerminal(config) {
             foreground: config.foreground || '#000000',
             cursor: config.cursor || '#000000',
             selectionBackground: 'rgba(0, 120, 215, 0.3)',
-            scrollbarSliderBackground: scrollbarColors(config.background || '#ffffff').thumb,
-            scrollbarSliderHoverBackground: scrollbarColors(config.background || '#ffffff').hover,
-            scrollbarSliderActiveBackground: scrollbarColors(config.background || '#ffffff').active,
+            scrollbarSliderBackground: scrollbarColors().thumb,
+            scrollbarSliderHoverBackground: scrollbarColors().hover,
+            scrollbarSliderActiveBackground: scrollbarColors().active,
         },
         allowProposedApi: true,
         macOptionIsMeta: true,
@@ -208,14 +208,8 @@ function writePtyData(base64) {
     term.write(bytes);
 }
 
-function scrollbarColors(bgHex) {
-    var hex = bgHex.replace('#', '');
-    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
-    var r = parseInt(hex.substring(0,2), 16);
-    var g = parseInt(hex.substring(2,4), 16);
-    var b = parseInt(hex.substring(4,6), 16);
-    var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    // macOS 26 Tahoe: no hover state, single consistent color
+// macOS 26 Tahoe: no hover state, single consistent color
+function scrollbarColors() {
     return {
         thumb: '#7f7f7f',
         hover: '#7f7f7f',
@@ -268,7 +262,7 @@ function setupScrollbarAutoHide() {
 // Called from Swift to update theme
 function updateTheme(theme) {
     var bg = theme.background || '#ffffff';
-    var sc = scrollbarColors(bg);
+    var sc = scrollbarColors();
     theme.scrollbarSliderBackground = sc.thumb;
     theme.scrollbarSliderHoverBackground = sc.hover;
     theme.scrollbarSliderActiveBackground = sc.active;
