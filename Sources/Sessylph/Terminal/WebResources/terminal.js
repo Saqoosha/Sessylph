@@ -95,9 +95,13 @@ function initTerminal(config) {
     term.loadAddon(fitAddon);
 
     // Web links addon — clickable URLs
+    // Custom regex: adds file:// support and balanced-parentheses handling (e.g. Wikipedia URLs).
+    // Structure: PROTOCOL :// BODY_CHARS* ( PAREN_GROUP BODY_CHARS* )* ( LAST_CHAR | PAREN_GROUP )
+    // Backtracking ensures a trailing balanced paren group can serve as the URL end.
+    var urlRegex = /(https?|HTTPS?|file|FILE):\/\/[^\s"'!*(){}|\\\^<>`]*(?:\([^\s"'!*(){}|\\\^<>`]*\)[^\s"'!*(){}|\\\^<>`]*)*(?:[^\s"':,.!?{}|\\\^~\[\]`<>()]|\([^\s"'!*(){}|\\\^<>`]*\))/;
     webLinksAddon = new WebLinksAddon.WebLinksAddon(function(_event, uri) {
         window.webkit.messageHandlers.openURL.postMessage(uri);
-    });
+    }, { urlRegex: urlRegex });
     term.loadAddon(webLinksAddon);
 
     // Unicode 11 addon — better CJK/emoji widths
