@@ -106,16 +106,22 @@ final class TabManager {
             orphans.append(session)
         }
 
+        // Configure all sessions in one batch (best-effort)
+        for session in orphans {
+            await TmuxManager.shared.configureSession(name: session.tmuxSessionName)
+        }
+
+        // Phase 1: Create all windows and position them in the tab group.
+        // tmux is NOT attached yet so the pty won't see the intermediate
+        // default window size before the tab group layout settles.
+        var reattachedControllers: [TabWindowController] = []
         for session in orphans {
             logger.info("Reattaching orphaned tmux session: \(session.tmuxSessionName)")
 
-            // Ensure tmux title passthrough is configured for this session
-            await TmuxManager.shared.configureSession(name: session.tmuxSessionName)
-
             let controller = TabWindowController(session: session)
             windowControllers.append(controller)
+            reattachedControllers.append(controller)
 
-            // Add to the last controller's window so tab order is preserved.
             let previousControllers = windowControllers.dropLast()
             if let last = previousControllers.last,
                let existingWindow = last.window,
@@ -134,6 +140,13 @@ final class TabManager {
         }
 
         restoreActiveTab()
+
+        // Phase 2: Now that all windows are at their final size, start
+        // tmux attachment. This avoids the visible buffer jump caused by
+        // tmux seeing the default window size first, then the real size.
+        for controller in reattachedControllers {
+            controller.attachToTmux()
+        }
     }
 
     // MARK: - Navigation

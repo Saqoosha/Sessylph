@@ -86,9 +86,6 @@ final class TerminalViewController: NSViewController {
         installKeyEventMonitor()
         installMouseMonitors()
         installScrollWheelMonitor()
-
-        // Start tmux attach
-        startTmuxAttach()
     }
 
     override func viewWillDisappear() {
@@ -477,7 +474,7 @@ final class TerminalViewController: NSViewController {
 
     // MARK: - Process
 
-    private func startTmuxAttach() {
+    func startTmuxAttach() {
         let tmuxPath: String
         do {
             tmuxPath = try ClaudeCLI.tmuxPath()

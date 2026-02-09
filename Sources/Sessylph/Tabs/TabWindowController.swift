@@ -34,6 +34,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     // MARK: - Initialization (attach to existing tmux session)
 
+    /// Creates a controller for an existing tmux session.
+    /// The terminal view is created but tmux is NOT attached yet —
+    /// call `attachToTmux()` after the window is positioned in the tab group
+    /// so the pty size matches the final window size.
     init(session: Session) {
         self.session = session
 
@@ -45,6 +49,12 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         showTerminal()
         startTitlePolling()
+    }
+
+    /// Starts the tmux attach-session process.
+    /// Call after the window has been added to the tab group and laid out.
+    func attachToTmux() {
+        terminalVC?.startTmuxAttach()
     }
 
     private func restoreWindowFrame() {
@@ -185,6 +195,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         applyTitles(emoji: ClaudeState.idle.emoji)
         showTerminal()
+        attachToTmux()
         startTitlePolling()
 
         logger.info("Launched Claude in \(directory.path)")
