@@ -369,11 +369,13 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
-        if TabManager.shared.needsPtyRefresh {
-            TabManager.shared.needsPtyRefresh = false
-            guard session.isRunning, let terminalVC else { return }
-            terminalVC.refreshPtySize()
-        }
+        TabManager.shared.needsPtyRefresh = false
+        guard session.isRunning, let terminalVC else { return }
+        // Always force-refresh pty size when a tab becomes key.
+        // An external tmux client may have changed the session's window
+        // dimensions while this tab was inactive — the pty size still
+        // matches our terminal, but the tmux server's window doesn't.
+        terminalVC.refreshPtySize(force: true)
     }
 
     func windowWillClose(_ notification: Notification) {

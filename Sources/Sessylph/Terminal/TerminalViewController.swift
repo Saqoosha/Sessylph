@@ -435,18 +435,24 @@ final class TerminalViewController: NSViewController {
 
     /// Re-sends the current terminal size to the pty so tmux picks up
     /// this client's dimensions (e.g. after switching from another terminal).
-    func refreshPtySize() {
+    ///
+    /// - Parameter force: When `true`, always sends SIGWINCH even if the pty
+    ///   size already matches. Needed when an external tmux client changed
+    ///   the session's window size — the pty size stays correct but the tmux
+    ///   server's window dimensions differ.
+    func refreshPtySize(force: Bool = false) {
         guard terminalView.process.running else { return }
         let fd = terminalView.process.childfd
 
-        // Check if pty size already matches what SwiftTerm expects.
-        // If they match, no other tmux client changed the size while
-        // we were in the background — skip the disruptive refresh.
-        var current = winsize()
-        if ioctl(fd, TIOCGWINSZ, &current) == 0 {
-            let expected = terminalView.getWindowSize()
-            if current.ws_col == expected.ws_col && current.ws_row == expected.ws_row {
-                return
+        if !force {
+            // Check if pty size already matches what SwiftTerm expects.
+            // If they match and we're not forcing, skip the disruptive refresh.
+            var current = winsize()
+            if ioctl(fd, TIOCGWINSZ, &current) == 0 {
+                let expected = terminalView.getWindowSize()
+                if current.ws_col == expected.ws_col && current.ws_row == expected.ws_row {
+                    return
+                }
             }
         }
 
