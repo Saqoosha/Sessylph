@@ -11,8 +11,28 @@ html, body {
 
 #terminal {
     position: absolute;
-    top: 16px;
+    top: 4px;
     left: 16px;
-    right: 16px;
-    bottom: 16px;
+    right: 4px;
+    bottom: 4px;
+}
+
+/* Hide native scrollbar on viewport (xterm.js draws its own custom scrollbar) */
+.xterm .xterm-viewport::-webkit-scrollbar {
+    width: 0;
+    display: none;
+}
+.xterm .xterm-viewport {
+    scrollbar-width: none;
+}
+
+/* macOS-style custom scrollbar (xterm.js ScrollableElement) */
+.xterm .xterm-scrollable-element > .scrollbar {
+    width: 8px !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar > .slider {
+    border-radius: 4px !important;
+    left: 1px !important;
+    width: 6px !important;
 }
