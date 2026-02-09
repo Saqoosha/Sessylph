@@ -226,15 +226,21 @@ final class TmuxManager: Sendable {
         }
     }
 
-    /// Captures pane history (scrollback above the visible area) with ANSI color escapes.
-    /// Returns nil if capture fails or there is no history.
+    /// Captures pane content (scrollback history + visible viewport) with ANSI color escapes.
+    /// Includes the visible viewport so that sessions with no scrollback history still
+    /// get their viewport content preloaded into xterm.js scrollback buffer.
+    /// Returns nil if capture fails or content is empty.
     func captureHistory(sessionName: String, lines: Int = 1000) async -> String? {
         do {
             let output = try await runTmux(args: [
-                "capture-pane", "-t", "=\(sessionName)", "-p", "-e",
-                "-S", "-\(lines)", "-E", "-1",
+                "capture-pane", "-t", "\(sessionName)", "-p", "-e",
+                "-S", "-\(lines)",
             ])
-            return output.isEmpty ? nil : output
+            // Strip trailing blank lines from viewport padding
+            let trimmed = output.replacingOccurrences(
+                of: "\\n+$", with: "", options: .regularExpression
+            )
+            return trimmed.isEmpty ? nil : trimmed
         } catch {
             logger.debug("Failed to capture history for \(sessionName): \(error.localizedDescription)")
             return nil
