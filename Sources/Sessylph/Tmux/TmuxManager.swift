@@ -27,12 +27,18 @@ final class TmuxManager: Sendable {
     }
 
     /// Sanitizes a string for use in tmux session names.
-    /// Replaces `.` and `:` (reserved in tmux target syntax) with `-`.
+    /// Replaces ` `, `.` and `:` (reserved in tmux target syntax) with `-`,
+    /// then strips leading hyphens (e.g. `.tmux` → `tmux` not `-tmux`)
+    /// to avoid tmux interpreting the name as option flags.
     private static func sanitizeForTmux(_ string: String, maxLength: Int) -> String {
         var result = string
             .replacingOccurrences(of: " ", with: "-")
             .replacingOccurrences(of: ".", with: "-")
             .replacingOccurrences(of: ":", with: "-")
+        while result.hasPrefix("-") {
+            result = String(result.dropFirst())
+        }
+        if result.isEmpty { result = "session" }
         if result.count > maxLength {
             result = String(result.prefix(maxLength))
         }
