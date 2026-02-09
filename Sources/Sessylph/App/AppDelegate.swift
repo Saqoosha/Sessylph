@@ -20,7 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         requestNotificationPermission()
 
         Task {
-            await TmuxManager.shared.configureServerOptions()
             await TabManager.shared.reattachOrphanedSessions()
             if TabManager.shared.windowControllers.isEmpty {
                 TabManager.shared.newTab()

@@ -23,11 +23,11 @@ final class TmuxManager: Sendable {
             return "\(folder)-\(suffix)"
         }
         let sanitizedTask = sanitizeForTmux(task, maxLength: 40)
-        return "\(folder)/\(sanitizedTask)-\(suffix)"
+        return "\(folder)_\(sanitizedTask)-\(suffix)"
     }
 
     /// Sanitizes a string for use in tmux session names.
-    /// Replaces ` `, `.` and `:` (reserved in tmux target syntax) with `-`,
+    /// Replaces ` `, `.`, `:` and `/` (reserved in tmux target syntax) with `-`,
     /// then strips leading hyphens (e.g. `.tmux` → `tmux` not `-tmux`)
     /// to avoid tmux interpreting the name as option flags.
     private static func sanitizeForTmux(_ string: String, maxLength: Int) -> String {
@@ -35,6 +35,7 @@ final class TmuxManager: Sendable {
             .replacingOccurrences(of: " ", with: "-")
             .replacingOccurrences(of: ".", with: "-")
             .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "/", with: "-")
         while result.hasPrefix("-") {
             result = String(result.dropFirst())
         }
@@ -65,36 +66,34 @@ final class TmuxManager: Sendable {
     /// per server lifetime (e.g. extended keys for CSI u / kitty protocol).
     /// All commands are batched into a single tmux invocation.
     /// Best-effort: failures are logged but don't block session launch.
-    func configureServerOptions() async {
-        // Batch all server-level options into one process spawn using ";" separators.
-        // Individual command failures don't prevent subsequent commands from running.
-        _ = try? await runTmux(args: [
-            "set-option", "-s", "extended-keys", "on",
-            ";", "set-option", "-s", "extended-keys-format", "csi-u",
-            ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
-            // Use the latest active client's size (not the smallest), so when
-            // multiple clients (e.g. Warp + Sessylph) share a session, switching
-            // between them resizes the window to match the active terminal.
-            ";", "set-option", "-g", "window-size", "latest",
-            // Scroll 1 line per mouse wheel event (default is 5)
-            ";", "bind-key", "-T", "copy-mode", "WheelUpPane", "send-keys", "-X", "scroll-up",
-            ";", "bind-key", "-T", "copy-mode", "WheelDownPane", "send-keys", "-X", "scroll-down",
-            ";", "bind-key", "-T", "copy-mode-vi", "WheelUpPane", "send-keys", "-X", "scroll-up",
-            ";", "bind-key", "-T", "copy-mode-vi", "WheelDownPane", "send-keys", "-X", "scroll-down",
-        ])
-    }
+    /// Server-level options applied once per server lifetime.
+    /// Included in createAndLaunchSession and configureSession batches
+    /// (not a separate call, since the tmux server may not exist yet).
+    private static let serverOptions: [String] = [
+        ";", "set-option", "-s", "extended-keys", "on",
+        ";", "set-option", "-s", "extended-keys-format", "csi-u",
+        ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+        // Disable alternate screen so output stays in the main buffer,
+        // allowing xterm.js scrollback to accumulate history.
+        ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
+        // Use the latest active client's size (not the smallest)
+        ";", "set-option", "-g", "window-size", "latest",
+        // Mouse off — let xterm.js handle scroll natively via its scrollback buffer.
+        ";", "set-option", "-g", "mouse", "off",
+    ]
 
     /// Configures an existing tmux session for title passthrough.
     /// Used when reattaching to orphaned sessions that are already running.
     /// All commands are batched into a single tmux invocation.
     /// Best-effort: failures are logged but don't block reattach.
     func configureSession(name: String) async {
+        let t = "=\(name)"
         _ = try? await runTmux(args: [
-            "set-option", "-t", name, "set-titles", "on",
-            ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
-            ";", "set-option", "-t", name, "allow-passthrough", "on",
-            ";", "set-option", "-t", name, "mouse", "on",
-        ])
+            "set-option", "-t", t, "set-titles", "on",
+            ";", "set-option", "-t", t, "set-titles-string", "#{pane_title}",
+            ";", "set-option", "-t", t, "allow-passthrough", "on",
+            ";", "set-option", "-t", t, "mouse", "off",
+        ] + Self.serverOptions)
     }
 
     /// Creates a tmux session, configures it for title passthrough, and launches
@@ -107,6 +106,9 @@ final class TmuxManager: Sendable {
         directory: URL,
         command: String
     ) async throws {
+        // NOTE: Do NOT use "=" prefix for -t targets within the same batch as
+        // new-session. tmux's batch parser cannot resolve "=name" for a session
+        // that was just created in the same invocation.
         do {
             _ = try await runTmux(args: [
                 "new-session", "-d", "-s", name, "-c", directory.path,
@@ -115,9 +117,9 @@ final class TmuxManager: Sendable {
                 ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
                 // Escape sequence passthrough (tmux 3.3+, may fail on older versions)
                 ";", "set-option", "-t", name, "allow-passthrough", "on",
-                // Mouse support for scroll wheel
-                ";", "set-option", "-t", name, "mouse", "on",
-                // Launch Claude
+                ";", "set-option", "-t", name, "mouse", "off",
+            ] + Self.serverOptions + [
+                // Launch Claude (must be last — earlier commands may fail best-effort)
                 ";", "send-keys", "-t", name, command, "Enter",
             ])
         } catch {
@@ -136,7 +138,7 @@ final class TmuxManager: Sendable {
         guard oldName != newName else { return true }
         do {
             _ = try await runTmux(args: [
-                "rename-session", "-t", oldName, newName,
+                "rename-session", "-t", "=\(oldName)", newName,
             ])
             return true
         } catch {
@@ -149,7 +151,7 @@ final class TmuxManager: Sendable {
     /// `tmux kill-session -t {name}`
     func killSession(name: String) async throws {
         _ = try await runTmux(args: [
-            "kill-session", "-t", name,
+            "kill-session", "-t", "=\(name)",
         ])
     }
 
@@ -157,7 +159,7 @@ final class TmuxManager: Sendable {
     /// `tmux has-session -t {name}`
     func sessionExists(name: String) async -> Bool {
         do {
-            _ = try await runTmux(args: ["has-session", "-t", name])
+            _ = try await runTmux(args: ["has-session", "-t", "=\(name)"])
             return true
         } catch {
             logger.debug("Session \(name) does not exist (or tmux error): \(error.localizedDescription)")
@@ -185,7 +187,7 @@ final class TmuxManager: Sendable {
     func getPaneTitle(sessionName: String) async -> String? {
         do {
             let output = try await runTmux(args: [
-                "display-message", "-t", sessionName, "-p", "#{pane_title}",
+                "display-message", "-t", "=\(sessionName)", "-p", "#{pane_title}",
             ])
             let title = output.trimmingCharacters(in: .whitespacesAndNewlines)
             return title.isEmpty ? nil : title
@@ -199,12 +201,27 @@ final class TmuxManager: Sendable {
     func getPaneCurrentPath(sessionName: String) async -> String? {
         do {
             let output = try await runTmux(args: [
-                "display-message", "-t", sessionName, "-p", "#{pane_current_path}",
+                "display-message", "-t", "=\(sessionName)", "-p", "#{pane_current_path}",
             ])
             let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
             return path.isEmpty ? nil : path
         } catch {
             logger.debug("Failed to get pane path for \(sessionName): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Captures pane history (scrollback above the visible area) with ANSI color escapes.
+    /// Returns nil if capture fails or there is no history.
+    func captureHistory(sessionName: String, lines: Int = 1000) async -> String? {
+        do {
+            let output = try await runTmux(args: [
+                "capture-pane", "-t", "=\(sessionName)", "-p", "-e",
+                "-S", "-\(lines)", "-E", "-1",
+            ])
+            return output.isEmpty ? nil : output
+        } catch {
+            logger.debug("Failed to capture history for \(sessionName): \(error.localizedDescription)")
             return nil
         }
     }

@@ -13,11 +13,6 @@ settings:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
 
-packages:
-  SwiftTerm:
-    url: https://github.com/migueldeicaza/SwiftTerm.git
-    from: "1.0.0"
-
 targets:
   Sessylph:
     type: application
@@ -26,8 +21,12 @@ targets:
       - path: Sources/Sessylph
         excludes:
           - "**/.DS_Store"
+          - "**/WebResources/**"
+      - path: Sources/Sessylph/Terminal/WebResources
+        type: folder
+        buildPhase: resources
     dependencies:
-      - package: SwiftTerm
+      - sdk: WebKit.framework
       - target: SessylphNotifier
     postCompileScripts:
       - script: |
