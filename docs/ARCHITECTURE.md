@@ -21,7 +21,7 @@ Internal architecture documentation for developers.
 │  │  TabWindowController                  │      │
 │  │  ┌─────────────┐ ┌─────────────────┐ │      │
 │  │  │ LauncherView│→│TerminalView     │ │      │
-│  │  │  (SwiftUI)  │ │  (SwiftTerm)    │ │      │
+│  │  │  (SwiftUI)  │ │(xterm.js/WebView)│ │      │
 │  │  └─────────────┘ └────────┬────────┘ │      │
 │  └────────────────────────────┼──────────┘      │
 │                               │                  │
@@ -51,7 +51,7 @@ Sources/
 │   ├── Resources/        Assets
 │   ├── Settings/         SettingsWindow, GeneralSettingsView, SessionConfigSheet
 │   ├── Tabs/             TabManager, TabWindowController
-│   ├── Terminal/         TerminalViewController (SwiftTerm host)
+│   ├── Terminal/         TerminalViewController (xterm.js/WKWebView host), TerminalBridge, WebResources/
 │   ├── Tmux/             TmuxManager
 │   └── Utilities/        ClaudeCLI, EnvironmentBuilder, Defaults, ShellQuote, ImagePasteHelper
 └── SessylphNotifier/
@@ -68,7 +68,7 @@ Entry point. Responsible for:
 - Notification permission request
 - tmux server configuration (one-time, batched single invocation)
 - Orphaned session reattachment on startup (two-phase: windows first, then tmux attach)
-- PTY refresh debounce (only after >1s inactivity to avoid glitches from notification banners)
+- PTY refresh on app activation (queries tmux window size, only bounces if mismatch)
 - Quit flow with confirmation alerts
 
 ### TabManager (singleton, @MainActor)
@@ -107,23 +107,27 @@ User clicks "Start Claude" in LauncherView
 
 ### TerminalViewController
 
-Hosts SwiftTerm's `LocalProcessTerminalView`, attaching to tmux via `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
+Hosts xterm.js inside a `WKWebView`, attaching to tmux via a PTY process running `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
 
-**Event handling (via NSEvent monitors):**
+**Scrollback preloading:** On reattach, `capture-pane -p -e -S -1000 -E -1` fetches tmux history and feeds it to xterm.js before PTY attach. Pre-fed history stays in xterm.js scrollback; tmux's cursor-positioning redraw only overwrites the viewport.
+
+**PTY size refresh:** On app activation, queries tmux's actual window size via `display-message -p '#{window_width},#{window_height}'` and only performs a SIGWINCH bounce (rows+1 → rows) if sizes differ. Normal tab switching skips this entirely.
+
+**TerminalBridge** — Bridges Swift ↔ JavaScript via `WKScriptMessageHandler`. Handles resize events, keyboard input, focus management, and data flow between PTY and xterm.js.
+
+**Event handling (via xterm.js + JavaScript):**
 - Shift+Enter → sends literal newline (LF)
 - Cmd+V → image paste via `ImagePasteHelper`
-- Mouse drag release → auto-copy selection
+- Selection → auto-copy to clipboard
 - URL click detection → open in browser
-- Scroll wheel → forwarded to tmux mouse protocol
-
-**TerminalProcessDelegate** — Bridge class (`@unchecked Sendable`) that forwards SwiftTerm's nonisolated delegate callbacks to `@MainActor` via `Task`.
+- Scroll wheel → xterm.js native scrollback (tmux mouse off)
 
 ### TmuxManager (Sendable)
 
 All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. Commands are batched using tmux's `;` separator to minimize process spawns.
 
 - **Session lifecycle:** `createAndLaunchSession()` (create + configure + launch in one invocation), `configureSession()` (for reattach), kill
-- **Queries:** list sessions, get pane title, get current path
+- **Queries:** list sessions, get pane title, get current path, get window size
 - **Server config:** Extended keys, CSI u, scroll bindings, window size "latest" (all batched into single invocation at startup)
 - **Session naming:** `sessylph-{first 8 chars of UUID}`
 
@@ -187,8 +191,8 @@ User clicks notification
 ## Concurrency Model
 
 - **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow
-- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions, TerminalProcessDelegate
-- **Bridge pattern:** SwiftTerm's nonisolated callbacks → `Task { @MainActor in ... }` via TerminalProcessDelegate
+- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions
+- **Bridge pattern:** xterm.js ↔ Swift via WKScriptMessageHandler (TerminalBridge)
 
 ## Session Persistence & Reattachment
 

@@ -369,15 +369,31 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
-        TabManager.shared.needsPtyRefresh = false
+        let needsCheck = TabManager.shared.needsPtyRefresh
         guard session.isRunning, let terminalVC else { return }
-        // Ensure the xterm.js web view has keyboard focus
+        // Only clear the flag after the guard — non-running tabs (e.g. launcher)
+        // must not consume it so the next running tab still gets the check.
+        TabManager.shared.needsPtyRefresh = false
         terminalVC.focusTerminal()
-        // Always force-refresh pty size when a tab becomes key.
-        // An external tmux client may have changed the session's window
-        // dimensions while this tab was inactive — the pty size still
-        // matches our terminal, but the tmux server's window doesn't.
-        terminalVC.refreshPtySize(force: true)
+
+        if needsCheck {
+            // App just became active — an external tmux client may have
+            // changed the session's window size while we were in background.
+            // Query tmux and only force-refresh if sizes actually differ.
+            let sessionName = session.tmuxSessionName
+            let expectedCols = terminalVC.terminalSize.cols
+            let expectedRows = terminalVC.terminalSize.rows
+            Task {
+                guard let tmuxSize = await TmuxManager.shared.getWindowSize(sessionName: sessionName) else {
+                    // Query failed — fall back to unconditional refresh
+                    terminalVC.refreshPtySize(force: true)
+                    return
+                }
+                if tmuxSize.cols != expectedCols || tmuxSize.rows != expectedRows {
+                    terminalVC.refreshPtySize(force: true)
+                }
+            }
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
