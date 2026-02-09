@@ -197,6 +197,21 @@ final class TmuxManager: Sendable {
         }
     }
 
+    /// Returns the tmux window dimensions (cols, rows) for the given session.
+    func getWindowSize(sessionName: String) async -> (cols: Int, rows: Int)? {
+        do {
+            let output = try await runTmux(args: [
+                "display-message", "-t", "=\(sessionName)", "-p", "#{window_width},#{window_height}",
+            ])
+            let parts = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ",")
+            guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return nil }
+            return (w, h)
+        } catch {
+            logger.debug("Failed to get window size for \(sessionName): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// Returns the current working directory of the active pane.
     func getPaneCurrentPath(sessionName: String) async -> String? {
         do {

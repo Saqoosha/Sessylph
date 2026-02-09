@@ -10,7 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - App Lifecycle
 
     nonisolated(unsafe) private var tabSwitchMonitor: Any?
-    private var lastResignActiveTime: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Defaults.register()
@@ -30,20 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("Sessylph launched")
     }
 
-    func applicationWillResignActive(_ notification: Notification) {
-        lastResignActiveTime = Date()
-    }
-
     func applicationDidBecomeActive(_ notification: Notification) {
-        // Only refresh PTY size if the app was inactive for more than 1 second.
-        // Brief deactivations (e.g. notification banners, system dialogs) shouldn't
-        // trigger the disruptive resize bounce that causes visible tmux scrolling.
-        if let resigned = lastResignActiveTime,
-           Date().timeIntervalSince(resigned) > 1.0
-        {
-            TabManager.shared.needsPtyRefresh = true
-        }
-        lastResignActiveTime = nil
+        TabManager.shared.needsPtyRefresh = true
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
