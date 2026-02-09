@@ -218,8 +218,10 @@ final class TerminalViewController: NSViewController {
                     // Auto-copy selection to clipboard (Warp-style),
                     // but only if user actually dragged to create/extend the selection.
                     self.terminalView.copy(self)
-                } else if event.clickCount == 1, !self.terminalView.selectionActive {
-                    // Single click with no selection → check for URL
+                } else if event.clickCount == 1, !self.didDragSelection {
+                    // Single click without drag → check for URL.
+                    // Note: can't check !selectionActive here because SwiftTerm
+                    // sets selectionActive on mouseDown before mouseUp fires.
                     if let url = self.detectURL(at: event) {
                         NSWorkspace.shared.open(url)
                     }
