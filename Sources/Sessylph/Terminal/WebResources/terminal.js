@@ -139,6 +139,11 @@ function initTerminal(config) {
 
     fitAddon.fit();
 
+    // Auto-hide scrollbar: show on scroll, fade out after idle
+    // Delay to ensure xterm.js has created the scrollbar DOM element
+    setTimeout(setupScrollbarAutoHide, 100);
+
+
     // Wire up events to Swift
     term.onData(function(data) {
         window.webkit.messageHandlers.ptyInput.postMessage(data);
@@ -216,6 +221,48 @@ function scrollbarColors(bgHex) {
         hover: '#7f7f7f',
         active: '#7f7f7f',
     };
+}
+
+// Auto-hide scrollbar: show on scroll activity, fade out after idle.
+// xterm.js toggles .visible/.invisible classes on the scrollbar element.
+// CSS overrides both to opacity:0, we add .scrollbar-visible to show it.
+function setupScrollbarAutoHide() {
+    var scrollbarEl = document.querySelector('.xterm .xterm-scrollable-element > .scrollbar.vertical');
+    if (!scrollbarEl) return;
+
+    var hideTimer = null;
+    var isHovered = false;
+
+    function showScrollbar() {
+        scrollbarEl.classList.add('scrollbar-visible');
+    }
+
+    function hideScrollbar() {
+        if (!isHovered) {
+            scrollbarEl.classList.remove('scrollbar-visible');
+        }
+    }
+
+    function scheduleHide() {
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(hideScrollbar, 500);
+    }
+
+    term.onScroll(function() {
+        showScrollbar();
+        scheduleHide();
+    });
+
+    scrollbarEl.addEventListener('mouseenter', function() {
+        isHovered = true;
+        showScrollbar();
+        clearTimeout(hideTimer);
+    });
+
+    scrollbarEl.addEventListener('mouseleave', function() {
+        isHovered = false;
+        scheduleHide();
+    });
 }
 
 // Called from Swift to update theme
