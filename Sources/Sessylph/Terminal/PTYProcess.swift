@@ -94,7 +94,7 @@ final class PTYProcess: @unchecked Sendable {
     func send(data: Data) {
         guard running, childfd >= 0, !data.isEmpty else { return }
         data.withUnsafeBytes { rawBuf in
-            let dispatchData = DispatchData(bytes: rawBuf.bindMemory(to: UInt8.self))
+            let dispatchData = DispatchData(bytes: rawBuf)
             DispatchIO.write(
                 toFileDescriptor: childfd,
                 data: dispatchData,
@@ -153,9 +153,8 @@ final class PTYProcess: @unchecked Sendable {
             return
         }
 
-        let nsData = data.withUnsafeBytes { ptr -> Data in
-            Data(ptr)
-        }
+        // Convert DispatchData to contiguous Data (handles multi-region DispatchData correctly)
+        let nsData = Data(data)
 
         dispatchQueue.async { [weak self] in
             guard let self else { return }
@@ -164,6 +163,7 @@ final class PTYProcess: @unchecked Sendable {
             }
         }
 
+        guard running else { return }
         io?.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
     }
 
@@ -234,15 +234,3 @@ final class PTYProcess: @unchecked Sendable {
     }
 }
 
-// MARK: - DispatchData helper
-
-private extension DispatchData {
-    func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) -> R) -> R {
-        var result: R!
-        enumerateBytes { buffer, _, stop in
-            result = body(UnsafeRawBufferPointer(buffer))
-            stop = true
-        }
-        return result
-    }
-}

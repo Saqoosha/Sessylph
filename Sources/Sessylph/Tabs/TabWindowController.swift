@@ -158,6 +158,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                     notifierPath: notifierPath
                 )
                 hookSettingsPath = hooksURL.path
+            } else {
+                logger.warning("sessylph-notifier not found in bundle — notifications will be disabled")
             }
 
             let command = session.options.buildCommand(
@@ -176,7 +178,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             SessionStore.shared.add(session)
         } catch {
             // Clean up the tmux session if it was already created
-            try? await TmuxManager.shared.killSession(name: session.tmuxSessionName)
+            do {
+                try await TmuxManager.shared.killSession(name: session.tmuxSessionName)
+            } catch {
+                logger.warning("Failed to clean up tmux session: \(error.localizedDescription)")
+            }
 
             logger.error("Failed to launch Claude: \(error.localizedDescription)")
 
@@ -229,11 +235,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         session.tmuxSessionName = newName
         SessionStore.shared.update(session)
 
-        Task {
+        Task { [weak self] in
             let success = await TmuxManager.shared.renameSession(from: oldName, to: newName)
             if !success {
-                self.session.tmuxSessionName = oldName
-                SessionStore.shared.update(self.session)
+                self?.session.tmuxSessionName = oldName
+                if let session = self?.session { SessionStore.shared.update(session) }
             }
         }
     }
@@ -336,22 +342,26 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     // MARK: - NSWindowDelegate
 
+    private var closeConfirmed = false
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if closeConfirmed { return true }
         if TabManager.shared.isTerminating { return true }
         if !session.isRunning { return true }
         if UserDefaults.standard.bool(forKey: Defaults.suppressCloseTabAlert) { return true }
 
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             let alert = NSAlert()
             alert.messageText = "Close Tab?"
-            alert.informativeText = "The Claude Code session in \"\(session.title)\" will be terminated."
+            alert.informativeText = "The Claude Code session in \"\(self.session.title)\" will be terminated."
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Close Tab")
             alert.addButton(withTitle: "Cancel")
             alert.showsSuppressionButton = true
 
             let response: NSApplication.ModalResponse
-            if let window {
+            if let window = self.window {
                 response = await alert.beginSheetModal(for: window)
             } else {
                 response = alert.runModal()
@@ -362,6 +372,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             }
 
             if response == .alertFirstButtonReturn {
+                self.closeConfirmed = true
                 self.window?.close()
             }
         }
@@ -398,12 +409,17 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     func windowWillClose(_ notification: Notification) {
         stopTitlePolling()
+        terminalVC?.teardown()
 
         if session.isRunning && !TabManager.shared.isTerminating {
             let sessionName = session.tmuxSessionName
             session.isRunning = false
             Task {
-                try? await TmuxManager.shared.killSession(name: sessionName)
+                do {
+                    try await TmuxManager.shared.killSession(name: sessionName)
+                } catch {
+                    logger.warning("Failed to kill tmux session \(sessionName): \(error.localizedDescription)")
+                }
             }
         }
 
