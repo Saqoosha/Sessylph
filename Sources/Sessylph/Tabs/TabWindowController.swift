@@ -371,6 +371,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     func windowDidBecomeKey(_ notification: Notification) {
         TabManager.shared.needsPtyRefresh = false
         guard session.isRunning, let terminalVC else { return }
+        // Ensure the xterm.js web view has keyboard focus
+        terminalVC.focusTerminal()
         // Always force-refresh pty size when a tab becomes key.
         // An external tmux client may have changed the session's window
         // dimensions while this tab was inactive — the pty size still
