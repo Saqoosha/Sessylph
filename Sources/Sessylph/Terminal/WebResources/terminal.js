@@ -4,6 +4,7 @@
 let term;
 let fitAddon;
 let canvasAddon;
+let gpuAddon;
 let webLinksAddon;
 let unicode11Addon;
 let lastBracketedPasteMode = false;
@@ -118,13 +119,15 @@ function initTerminal(config) {
     var gpuRenderer = false;
     try {
         var wgl = new WebglAddon.WebglAddon();
-        wgl.onContextLoss(function() { wgl.dispose(); });
+        wgl.onContextLoss(function() { wgl.dispose(); gpuAddon = null; });
         term.loadAddon(wgl);
+        gpuAddon = wgl;
         gpuRenderer = true;
     } catch (e) {
         try {
             canvasAddon = new CanvasAddon.CanvasAddon();
             term.loadAddon(canvasAddon);
+            gpuAddon = canvasAddon;
             gpuRenderer = true;
         } catch (e2) {
             // Falls back to DOM renderer
@@ -296,4 +299,13 @@ function focusTerminal() {
 // Called from Swift to get bracketed paste mode
 function getBracketedPasteMode() {
     return term.modes.bracketedPasteMode;
+}
+
+// Called from Swift to clear the GPU renderer's glyph texture atlas.
+// Forces all cached glyphs to be re-rendered with the current font,
+// fixing stale glyphs from early writes before the font was fully loaded.
+function clearGlyphCache() {
+    if (gpuAddon && gpuAddon.clearTextureAtlas) {
+        gpuAddon.clearTextureAtlas();
+    }
 }
