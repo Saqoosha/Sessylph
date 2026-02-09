@@ -54,7 +54,9 @@ final class TerminalBridge: NSObject {
 
     func createWebView(frame: CGRect) -> WKWebView {
         let config = WKWebViewConfiguration()
+        #if DEBUG
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        #endif
 
         let userContent = config.userContentController
         for name in Self.messageNames {
@@ -139,6 +141,20 @@ final class TerminalBridge: NSObject {
         webView.evaluateJavaScript("feedText('\(escaped)')")
     }
 
+    // MARK: - Teardown
+
+    func teardown() {
+        let userContent = webView.configuration.userContentController
+        for name in Self.messageNames {
+            userContent.removeScriptMessageHandler(forName: name)
+        }
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        isReady = false
+        pendingData.removeAll()
+        pendingFeedText.removeAll()
+    }
+
     // MARK: - Handle messages from JS
 
     fileprivate func handleMessage(name: String, body: Any) {
@@ -203,14 +219,21 @@ final class TerminalBridge: NSObject {
 // MARK: - WKNavigationDelegate
 
 extension TerminalBridge: WKNavigationDelegate {
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        logger.error("WKWebView web content process terminated — reloading")
+        isReady = false
+        webView.reload()
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let config = self.terminalConfig
+        let escapeJS = { (s: String) in s.replacingOccurrences(of: "'", with: "\\'") }
         let js = """
         initTerminal({
-            fontFamily: '\(config.fontFamily.replacingOccurrences(of: "'", with: "\\'"))',
+            fontFamily: '\(escapeJS(config.fontFamily))',
             fontSize: \(config.fontSize),
-            background: '\(config.background)',
-            foreground: '\(config.foreground)'
+            background: '\(escapeJS(config.background))',
+            foreground: '\(escapeJS(config.foreground))'
         });
         """
         webView.evaluateJavaScript(js)

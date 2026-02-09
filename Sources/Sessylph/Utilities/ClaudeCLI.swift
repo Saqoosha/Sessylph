@@ -49,12 +49,13 @@ enum ClaudeCLI {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return nil
         }
 
+        // Read before waitUntilExit to avoid pipe buffer deadlock
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -81,13 +82,15 @@ enum ClaudeCLI {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             throw ResolveError.notFound(name)
         }
 
+        // Read before waitUntilExit to avoid pipe buffer deadlock
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
         if process.terminationStatus == 0 {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !path.isEmpty
             {

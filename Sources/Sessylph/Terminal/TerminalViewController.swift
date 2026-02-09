@@ -87,6 +87,11 @@ final class TerminalViewController: NSViewController, TerminalBridgeDelegate, PT
         }
     }
 
+    func teardown() {
+        ptyProcess.terminate()
+        bridge.teardown()
+    }
+
     // MARK: - Key Event Monitor (Shift+Enter → newline, Cmd+V → image paste)
 
     private func installKeyEventMonitor() {
@@ -323,6 +328,10 @@ final class TerminalViewController: NSViewController, TerminalBridgeDelegate, PT
     }
 
     func bridgeDidRequestOpenURL(_ bridge: TerminalBridge, url: URL) {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            logger.warning("Blocked opening URL with non-HTTP scheme: \(url.absoluteString)")
+            return
+        }
         NSWorkspace.shared.open(url)
     }
 
