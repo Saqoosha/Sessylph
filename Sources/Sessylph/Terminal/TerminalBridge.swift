@@ -128,6 +128,10 @@ final class TerminalBridge: NSObject {
         webView.evaluateJavaScript("focusTerminal()")
     }
 
+    func clearGlyphCache() {
+        webView.evaluateJavaScript("clearGlyphCache()")
+    }
+
     func feedText(_ text: String) {
         guard isReady else {
             pendingFeedText.append(text)

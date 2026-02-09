@@ -232,6 +232,12 @@ final class TerminalViewController: NSViewController, TerminalBridgeDelegate, PT
             Task {
                 await preloadScrollback()
                 launchTmuxPty(tmuxPath: tmuxPath)
+                // Clear glyph cache after PTY starts to fix scrollback glyphs
+                // that were rendered before the font was fully loaded in the
+                // GPU renderer's texture atlas.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    self?.bridge.clearGlyphCache()
+                }
             }
         } else {
             launchTmuxPty(tmuxPath: tmuxPath)
