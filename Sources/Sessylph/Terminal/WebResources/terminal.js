@@ -210,19 +210,12 @@ function scrollbarColors(bgHex) {
     var g = parseInt(hex.substring(2,4), 16);
     var b = parseInt(hex.substring(4,6), 16);
     var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    if (luminance < 0.5) {
-        return {
-            thumb: 'rgba(255, 255, 255, 0.25)',
-            hover: 'rgba(255, 255, 255, 0.45)',
-            active: 'rgba(255, 255, 255, 0.55)',
-        };
-    } else {
-        return {
-            thumb: 'rgba(0, 0, 0, 0.3)',
-            hover: 'rgba(0, 0, 0, 0.5)',
-            active: 'rgba(0, 0, 0, 0.6)',
-        };
-    }
+    // macOS 26 Tahoe: no hover state, single consistent color
+    return {
+        thumb: '#7f7f7f',
+        hover: '#7f7f7f',
+        active: '#7f7f7f',
+    };
 }
 
 // Called from Swift to update theme
