@@ -29,6 +29,8 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - Each tab = one tmux session running Claude Code
 - xterm.js (WKWebView) connects via PTY to `tmux attach-session`
 - Terminal rendering: xterm.js with WebGL → Canvas → DOM fallback chain
+- Scrollback preloading: `capture-pane -p -e -J` feeds tmux history to xterm.js on reattach
+- macOS-native auto-hiding scrollbar (show on scroll, fade after 500ms)
 - Notifications via Claude Code hooks + sessylph-notifier CLI → DistributedNotificationCenter
 - Sessions survive app restart (tmux persistence)
 - Native window tabbing: `NSWindow.tabbingMode = .preferred`

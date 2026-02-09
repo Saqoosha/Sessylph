@@ -109,7 +109,9 @@ User clicks "Start Claude" in LauncherView
 
 Hosts xterm.js inside a `WKWebView`, attaching to tmux via a PTY process running `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
 
-**Scrollback preloading:** On reattach, `capture-pane -p -e -S -1000 -E -1` fetches tmux history and feeds it to xterm.js before PTY attach. Pre-fed history stays in xterm.js scrollback; tmux's cursor-positioning redraw only overwrites the viewport.
+**Scrollback preloading:** On reattach, `capture-pane -p -e -J -S -1000` fetches tmux history (with trailing spaces stripped and wrapped lines joined) and feeds it to xterm.js before PTY attach. Pre-fed history stays in xterm.js scrollback; tmux's cursor-positioning redraw only overwrites the viewport. After PTY attachment, the GPU renderer's glyph texture atlas is cleared to ensure preloaded content renders with the correct custom font (prevents stale glyphs from early writes before the font was fully loaded).
+
+**Scrollbar:** macOS 26 Tahoe-style scrollbar with auto-hide behavior. Shows on scroll activity, fades out after 500ms of inactivity, stays visible on hover. CSS overrides xterm.js's `.visible`/`.invisible` class system; JS toggles a `.scrollbar-visible` class on the `.scrollbar.vertical` element.
 
 **PTY size refresh:** On app activation, queries tmux's actual window size via `display-message -p '#{window_width},#{window_height}'` and only performs a SIGWINCH bounce (rows+1 → rows) if sizes differ. Normal tab switching skips this entirely.
 
@@ -127,8 +129,8 @@ Hosts xterm.js inside a `WKWebView`, attaching to tmux via a PTY process running
 All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. Commands are batched using tmux's `;` separator to minimize process spawns.
 
 - **Session lifecycle:** `createAndLaunchSession()` (create + configure + launch in one invocation), `configureSession()` (for reattach), kill
-- **Queries:** list sessions, get pane title, get current path, get window size
-- **Server config:** Extended keys, CSI u, scroll bindings, window size "latest" (all batched into single invocation at startup)
+- **Queries:** list sessions, get pane title, get current path, get window size, capture pane history
+- **Server config:** Extended keys, CSI u, alternate screen disabled (smcup@:rmcup@), mouse off, window size "latest" (all batched into session creation)
 - **Session naming:** `sessylph-{first 8 chars of UUID}`
 
 ### Models
