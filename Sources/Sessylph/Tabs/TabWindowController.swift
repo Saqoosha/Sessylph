@@ -212,9 +212,30 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let (state, taskDesc) = Self.parseClaudeTitle(rawTitle)
         if state == .working {
             needsAttention = false
+            // Only rename tmux session for actual working tasks (keep last task when idle)
+            if taskDesc != lastTaskDescription {
+                renameTmuxSession(task: taskDesc)
+            }
         }
         lastTaskDescription = taskDesc
         applyTitles(emoji: needsAttention ? "⚠️" : state.emoji)
+    }
+
+    private func renameTmuxSession(task: String) {
+        let newName = TmuxManager.sessionName(for: session.id, directory: session.directory, task: task)
+        guard newName != session.tmuxSessionName else { return }
+
+        let oldName = session.tmuxSessionName
+        session.tmuxSessionName = newName
+        SessionStore.shared.update(session)
+
+        Task {
+            let success = await TmuxManager.shared.renameSession(from: oldName, to: newName)
+            if !success {
+                self.session.tmuxSessionName = oldName
+                SessionStore.shared.update(self.session)
+            }
+        }
     }
 
     /// Called by AppDelegate when a hook "notification" event is received.

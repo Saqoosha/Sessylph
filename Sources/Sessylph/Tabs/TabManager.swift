@@ -175,9 +175,9 @@ final class TabManager {
         if let controller = windowControllers.first(where: { $0.session.id == sessionId }) {
             return controller
         }
-        // Fallback: derive tmux session name from UUID and match
-        let tmuxName = TmuxManager.sessionName(for: sessionId)
-        return windowControllers.first(where: { $0.session.tmuxSessionName == tmuxName })
+        // Fallback: match by stable sessylph-UUID suffix (handles renamed sessions)
+        let suffix = TmuxManager.sessionNameSuffix(for: sessionId)
+        return windowControllers.first(where: { $0.session.tmuxSessionName.contains(suffix) })
     }
 
     // MARK: - Active Tab Persistence

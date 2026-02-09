@@ -7,9 +7,36 @@ final class TmuxManager: Sendable {
     static let shared = TmuxManager()
     static let sessionPrefix = "sessylph"
 
-    /// Generates a tmux session name from a session UUID.
-    static func sessionName(for id: UUID) -> String {
+    /// The stable identifier suffix used for programmatic lookups.
+    static func sessionNameSuffix(for id: UUID) -> String {
         "\(sessionPrefix)-\(id.uuidString.prefix(8).lowercased())"
+    }
+
+    /// Generates a tmux session name with folder (and optional task) up front,
+    /// sessylph marker at the end for easy scanning in `tmux ls`.
+    ///
+    /// Format: `{folder} {suffix}` or `{folder} | {task} {suffix}`
+    static func sessionName(for id: UUID, directory: URL, task: String = "") -> String {
+        let folder = sanitizeForTmux(directory.lastPathComponent, maxLength: 20)
+        let suffix = sessionNameSuffix(for: id)
+        if task.isEmpty {
+            return "\(folder)-\(suffix)"
+        }
+        let sanitizedTask = sanitizeForTmux(task, maxLength: 40)
+        return "\(folder)/\(sanitizedTask)-\(suffix)"
+    }
+
+    /// Sanitizes a string for use in tmux session names.
+    /// Replaces `.` and `:` (reserved in tmux target syntax) with `-`.
+    private static func sanitizeForTmux(_ string: String, maxLength: Int) -> String {
+        var result = string
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        if result.count > maxLength {
+            result = String(result.prefix(maxLength))
+        }
+        return result
     }
 
     enum TmuxError: Error, LocalizedError {
@@ -98,6 +125,20 @@ final class TmuxManager: Sendable {
         }
     }
 
+    /// Renames a tmux session. Best-effort: returns false on failure.
+    func renameSession(from oldName: String, to newName: String) async -> Bool {
+        guard oldName != newName else { return true }
+        do {
+            _ = try await runTmux(args: [
+                "rename-session", "-t", oldName, newName,
+            ])
+            return true
+        } catch {
+            logger.debug("Failed to rename session \(oldName) → \(newName): \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// Kills a session.
     /// `tmux kill-session -t {name}`
     func killSession(name: String) async throws {
@@ -127,7 +168,7 @@ final class TmuxManager: Sendable {
             return output
                 .components(separatedBy: "\n")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { $0.hasPrefix(Self.sessionPrefix + "-") }
+                .filter { $0.contains(Self.sessionPrefix + "-") }
         } catch {
             logger.warning("Failed to list tmux sessions: \(error.localizedDescription)")
             return []
