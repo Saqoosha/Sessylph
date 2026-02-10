@@ -22,11 +22,11 @@ struct LauncherView: View {
             VStack(spacing: 28) {
                 header
                 directoryCard
+                startButton
                 if !recentDirectories.isEmpty {
                     recentSection
                 }
                 optionsSection
-                startButton
             }
             .padding(.horizontal, 36)
             .padding(.vertical, 36)
@@ -147,6 +147,7 @@ struct LauncherView: View {
         let isHovered = hoveredDirectory == dir
         return Button {
             selectedDirectory = dir
+            launch()
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "folder.fill")
@@ -326,3 +327,4 @@ extension URL {
         (path as NSString).abbreviatingWithTildeInPath
     }
 }
+
