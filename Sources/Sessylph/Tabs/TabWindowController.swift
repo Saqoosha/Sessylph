@@ -13,6 +13,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     var needsAttention: Bool = false
     private var terminalVC: TerminalViewController?
     private(set) var lastTaskDescription: String = ""
+    /// The last task description observed while Claude was actively working.
+    /// Retained across idle transitions so notifications can reference the completed task.
+    private(set) var lastWorkingTaskDescription: String = ""
     private var titlePollTimer: Timer?
     private var lastPolledTitle: String?
 
@@ -218,6 +221,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let (state, taskDesc) = Self.parseClaudeTitle(rawTitle)
         if state == .working {
             needsAttention = false
+            lastWorkingTaskDescription = taskDesc
             // Only rename tmux session for actual working tasks (keep last task when idle)
             if taskDesc != lastTaskDescription {
                 renameTmuxSession(task: taskDesc)
