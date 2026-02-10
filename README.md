@@ -13,6 +13,7 @@ English | [日本語](README.ja.md)
 - **Tabbed Interface** — Each tab runs an independent Claude Code session using native macOS window tabbing
 - **tmux Persistence** — Sessions survive app restarts; reconnect to running conversations with scrollback history preserved
 - **Desktop Notifications** — Get notified when Claude Code completes a task or needs your attention
+- **Auto-Activate** — Optionally bring the app and tab to front when a task completes
 - **Image Paste** — Paste images directly into the terminal with Cmd+V
 - **Configurable** — Customize model, permission mode, appearance, and behavior via Settings
 

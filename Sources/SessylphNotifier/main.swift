@@ -4,11 +4,11 @@ import Foundation
 /// to the main Sessylph app via DistributedNotificationCenter.
 ///
 /// Usage: sessylph-notifier <sessionId> <event>
-///   event: "stop" | "notification"
+///   event: "stop" | "permission_prompt" | "idle_prompt"
 ///
-/// Called by Claude Code hooks configured via --settings.
-/// Reads hook context from stdin (JSON), posts a distributed notification
-/// that the main app listens for.
+/// Called by Claude Code hooks (via --settings).
+/// Reads hook context from stdin (JSON) when available, posts a distributed
+/// notification that the main app listens for.
 
 let args = CommandLine.arguments
 guard args.count >= 3 else {

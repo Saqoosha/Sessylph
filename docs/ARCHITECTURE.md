@@ -63,10 +63,13 @@ Sources/
 ### AppDelegate
 
 Entry point. Responsible for:
-- Menu bar setup (File, Edit, Window, Settings + Cmd+1–9 tab switching)
+- Menu bar setup (App, File, Edit, Window menus + Cmd+1–9 tab switching)
+  - Standard macOS items: Hide, Hide Others, Show All, Settings
 - DistributedNotificationCenter listener for hook events
 - Notification permission request
-- tmux server configuration (one-time, batched single invocation)
+- Auto-activate on task completion (`activateOnStop` preference) — brings app + tab to front
+  - Handles hidden app state (`NSApp.unhide` + delayed activation)
+  - Pre-computes `isFrontmost` before state changes to avoid notification suppression race
 - Orphaned session reattachment on startup (two-phase: windows first, then tmux attach)
 - PTY refresh on app activation (queries tmux window size, only bounces if mismatch)
 - Quit flow with confirmation alerts
@@ -78,7 +81,7 @@ Central registry of all open `TabWindowController` instances.
 - `newTab()` / `newTab(directory:)` — Create launcher or pre-filled tabs
 - `reattachOrphanedSessions()` — Restore running tmux sessions on app restart
 - `findController(for:)` — Locate controller by Session ID
-- `bringToFront()` — Navigate to a specific tab
+- `bringToFront(sessionId:)` — Navigate to a specific tab (handles hidden app state with unhide + delayed activate)
 - `saveActiveSessionId()` / `restoreActiveTab()` — Persist active tab across restarts
 
 ### TabWindowController (@MainActor)
@@ -101,7 +104,7 @@ User clicks "Start Claude" in LauncherView
   → Switch to TerminalViewController → attachToTmux()
 ```
 
-**Title polling:** Every 2 seconds, queries tmux pane title and parses Claude Code's status emoji:
+**Title polling:** Every 1 second, queries tmux pane title and parses Claude Code's status emoji:
 - `✳` (U+2733) → idle
 - Braille spinner (U+2800–U+28FF) → working
 
@@ -155,9 +158,12 @@ Claude Code hook fires
 
 AppDelegate listener
   → extracts sessionId, event, message
-  → TabWindowController.markNeedsAttention()
-  → NotificationManager.postNeedsAttention()
-  → UNUserNotificationCenter alert (if session not in foreground)
+  → pre-computes isFrontmost before any state changes
+  → "stop" event + activateOnStop preference:
+      → TabManager.bringToFront(sessionId) — activates app/tab
+      → 0.5s delayed notification post (avoids macOS swallowing it during activation)
+  → "permission_prompt" → TabWindowController.markNeedsAttention()
+  → NotificationManager posts UNUserNotification (if not frontmost)
 
 User clicks notification
   → TabManager.bringToFront(sessionId)
@@ -175,6 +181,7 @@ User clicks notification
 - General: default model, permission mode
 - Appearance: font name, font size (10–24pt)
 - Notifications: enabled, notify on stop, notify on permission
+- Behavior: activate on task completion (`activateOnStop`)
 - Launcher state: persisted between launches
 - Alerts: suppress close/quit confirmations
 - Session state: active session ID, recent directories

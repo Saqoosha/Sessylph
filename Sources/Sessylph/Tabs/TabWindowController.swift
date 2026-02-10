@@ -253,10 +253,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     // MARK: - Title Polling
 
     private func startTitlePolling() {
-        // Immediate first poll
         Task { await pollPaneTitle() }
-        // Then poll every 2 seconds
-        titlePollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        titlePollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.pollPaneTitle()
             }
