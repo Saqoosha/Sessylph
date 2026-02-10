@@ -11,24 +11,22 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
 
-    private let models = ["", "sonnet", "opus", "haiku"]
-    private let permissionModes = ["", "default", "plan", "acceptEdits", "bypassPermissions"]
+    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
 
     var body: some View {
         Form {
             Section("Claude Code Defaults") {
                 Picker("Default Model", selection: $defaultModel) {
                     Text("Auto").tag("")
-                    Text("Sonnet").tag("sonnet")
-                    Text("Opus").tag("opus")
-                    Text("Haiku").tag("haiku")
+                    ForEach(cliOptions.modelAliases, id: \.self) { alias in
+                        Text(alias.prefix(1).uppercased() + alias.dropFirst()).tag(alias)
+                    }
                 }
 
                 Picker("Permission Mode", selection: $defaultPermissionMode) {
-                    Text("Default").tag("")
-                    Text("Plan").tag("plan")
-                    Text("Accept Edits").tag("acceptEdits")
-                    Text("Bypass Permissions").tag("bypassPermissions")
+                    ForEach(cliOptions.permissionModes, id: \.self) { mode in
+                        Text(Self.permissionModeLabel(mode)).tag(mode)
+                    }
                 }
             }
 
@@ -76,5 +74,20 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .scrollDisabled(true)
         .frame(minWidth: 450)
+        .onAppear {
+            cliOptions = ClaudeCLI.discoverCLIOptions()
+        }
+    }
+
+    private static func permissionModeLabel(_ mode: String) -> String {
+        switch mode {
+        case "default": "Default"
+        case "plan": "Plan"
+        case "acceptEdits": "Accept Edits"
+        case "delegate": "Delegate"
+        case "dontAsk": "Don't Ask"
+        case "bypassPermissions": "Bypass Permissions"
+        default: mode
+        }
     }
 }
