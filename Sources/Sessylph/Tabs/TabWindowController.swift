@@ -12,7 +12,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     var session: Session
     var needsAttention: Bool = false
     private var terminalVC: TerminalViewController?
-    private var lastTaskDescription: String = ""
+    private(set) var lastTaskDescription: String = ""
     private var titlePollTimer: Timer?
     private var lastPolledTitle: String?
 
