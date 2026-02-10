@@ -18,6 +18,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     private(set) var lastWorkingTaskDescription: String = ""
     private var titlePollTimer: Timer?
     private var lastPolledTitle: String?
+    private var spinnerTimer: Timer?
+    private var spinnerIndex: Int = 0
+    private static let spinnerFrames: [String] = ["·", "✻", "✽", "✶", "✳", "✢"]
+    private static let claudeOrange = NSColor(srgbRed: 0xD9/255.0, green: 0x78/255.0, blue: 0x58/255.0, alpha: 1.0)
 
     private static let defaultSize = NSSize(width: 900, height: 600)
 
@@ -150,7 +154,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         session = Session(directory: directory, options: options)
 
         // Update tab title immediately so the user sees feedback before tmux finishes
-        applyTitles(emoji: "⏳")
+        applyTitles(icon: "⏳")
 
         do {
             // Resolve paths and generate hooks before the tmux call (sync, fast)
@@ -204,7 +208,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             return
         }
 
-        applyTitles(emoji: ClaudeState.idle.emoji)
+        applyTitles(icon: ClaudeState.idle.icon)
         showTerminal()
         attachToTmux()
         startTitlePolling()
@@ -230,7 +234,16 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             }
         }
         lastTaskDescription = taskDesc
-        applyTitles(emoji: needsAttention ? "❓" : state.emoji)
+
+        if needsAttention {
+            stopSpinner()
+            applyTitles(icon: "❓")
+        } else if state == .working {
+            startSpinner()
+        } else {
+            stopSpinner()
+            applyTitles(icon: state.icon)
+        }
     }
 
     private func renameTmuxSession(task: String) {
@@ -253,7 +266,29 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     /// Called by AppDelegate when a hook "notification" event is received.
     func markNeedsAttention() {
         needsAttention = true
-        applyTitles(emoji: "❓")
+        applyTitles(icon: "❓")
+    }
+
+    // MARK: - Working Spinner
+
+    private func startSpinner() {
+        guard spinnerTimer == nil else {
+            // Already spinning — just apply the current frame
+            applyTitles(icon: Self.spinnerFrames[spinnerIndex])
+            return
+        }
+        spinnerIndex = 0
+        applyTitles(icon: Self.spinnerFrames[spinnerIndex])
+        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.spinnerIndex = (self.spinnerIndex + 1) % Self.spinnerFrames.count
+            self.applyTitles(icon: Self.spinnerFrames[self.spinnerIndex])
+        }
+    }
+
+    private func stopSpinner() {
+        spinnerTimer?.invalidate()
+        spinnerTimer = nil
     }
 
     // MARK: - Title Polling
@@ -280,17 +315,24 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         updateTitle(from: title)
     }
 
-    private func applyTitles(emoji: String) {
-        let dirName = session.title
-        let title = lastTaskDescription.isEmpty
-            ? "\(emoji) \(dirName)"
-            : "\(emoji) \(dirName) — \(lastTaskDescription)"
+    private var isSpinning: Bool { spinnerTimer != nil }
 
-        if window?.tab.title != title {
-            window?.tab.title = title
+    private func applyTitles(icon: String) {
+        let dirName = session.title
+        let rest = lastTaskDescription.isEmpty ? dirName : "\(dirName) — \(lastTaskDescription)"
+
+        let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .bold)
+        let attributed = NSMutableAttributedString()
+        var iconAttrs: [NSAttributedString.Key: Any] = [.font: monoFont]
+        if isSpinning {
+            iconAttrs[.foregroundColor] = Self.claudeOrange
         }
-        if window?.title != title {
-            window?.title = title
+        attributed.append(NSAttributedString(string: "\(icon) ", attributes: iconAttrs))
+        attributed.append(NSAttributedString(string: rest))
+        window?.tab.attributedTitle = attributed
+
+        if window?.title != rest {
+            window?.title = rest
         }
     }
 
@@ -301,11 +343,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         case working
         case unknown
 
-        var emoji: String {
+        var icon: String {
             switch self {
-            case .idle: "✅"
-            case .working: "🔄"
-            case .unknown: "💻"
+            case .idle: "✳"
+            case .working: "✻"
+            case .unknown: "·"
             }
         }
     }
@@ -412,6 +454,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     func windowWillClose(_ notification: Notification) {
+        stopSpinner()
         stopTitlePolling()
         terminalVC?.teardown()
 
