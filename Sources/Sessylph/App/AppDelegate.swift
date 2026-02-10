@@ -112,6 +112,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Settings...", action: #selector(showSettings(_:)), keyEquivalent: ",")
         appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide Sessylph", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthersItem)
+        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Sessylph", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let appMenuItem = NSMenuItem()
         appMenuItem.submenu = appMenu
