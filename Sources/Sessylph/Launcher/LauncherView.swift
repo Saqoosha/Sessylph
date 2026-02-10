@@ -1,9 +1,10 @@
 import SwiftUI
 
 struct LauncherView: View {
-    // Persisted launcher options
-    @AppStorage(Defaults.launcherModel) private var model = ""
-    @AppStorage(Defaults.launcherPermissionMode) private var permissionMode = ""
+    // Shared with General Settings
+    @AppStorage(Defaults.defaultModel) private var model = ""
+    @AppStorage(Defaults.defaultPermissionMode) private var permissionMode = ""
+    // Launcher-only options
     @AppStorage(Defaults.launcherSkipPermissions) private var skipPermissions = false
     @AppStorage(Defaults.launcherContinueSession) private var continueSession = false
     @AppStorage(Defaults.launcherVerbose) private var verbose = false
@@ -12,67 +13,71 @@ struct LauncherView: View {
     @State private var recentDirectories: [URL] = []
     @State private var hoveredDirectory: URL?
     @State private var isLaunching = false
+    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
 
     var onLaunch: ((URL, ClaudeCodeOptions) -> Void)?
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 28) {
-                    header
-                    directoryCard
-                    if !recentDirectories.isEmpty {
-                        recentSection
-                    }
-                    optionsSection
+        ScrollView {
+            VStack(spacing: 28) {
+                header
+                directoryCard
+                if !recentDirectories.isEmpty {
+                    recentSection
                 }
-                .padding(.horizontal, 36)
-                .padding(.top, 36)
-                .padding(.bottom, 20)
+                optionsSection
+                startButton
             }
-            .disabled(isLaunching)
-
-            Divider()
-
-            // Footer
-            HStack {
-                Spacer()
-                Button {
-                    launch()
-                } label: {
-                    Group {
-                        if isLaunching {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Starting...")
-                            }
-                        } else {
-                            Label("Start Claude", systemImage: "play.fill")
-                        }
-                    }
-                    .frame(width: 140)
-                }
-                .controlSize(.large)
-                .keyboardShortcut(.return, modifiers: [])
-                .disabled(selectedDirectory == nil || isLaunching)
-                Spacer()
-            }
-            .padding(.vertical, 16)
+            .padding(.horizontal, 36)
+            .padding(.vertical, 36)
+            .frame(maxWidth: 480)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollBounceBehavior(.basedOnSize)
+        .contentMargins(.vertical, 0, for: .scrollContent)
+        .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 0) }
+        .disabled(isLaunching)
+        .defaultScrollAnchor(.center)
         .onAppear {
             recentDirectories = RecentDirectories.load()
+            cliOptions = ClaudeCLI.discoverCLIOptions()
         }
+    }
+
+    // MARK: - Start Button
+
+    private var startButton: some View {
+        Button {
+            launch()
+        } label: {
+            Group {
+                if isLaunching {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Starting...")
+                    }
+                } else {
+                    Label("Start Claude", systemImage: "play.fill")
+                }
+            }
+            .frame(width: 140)
+        }
+        .controlSize(.large)
+        .keyboardShortcut(.return, modifiers: [])
+        .disabled(selectedDirectory == nil || isLaunching)
+        .padding(.top, 4)
     }
 
     // MARK: - Header
 
     private var header: some View {
         VStack(spacing: 6) {
-            Image(systemName: "terminal.fill")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 64, height: 64)
             Text("Sessylph")
                 .font(.title.bold())
             Text("Start a new Claude Code session")
@@ -93,7 +98,7 @@ struct LauncherView: View {
             HStack(spacing: 10) {
                 Image(systemName: "folder.fill")
                     .font(.title3)
-                    .foregroundStyle(selectedDirectory != nil ? .orange : .secondary)
+                    .foregroundStyle(selectedDirectory != nil ? Color.accentColor : Color.secondary)
 
                 if let dir = selectedDirectory {
                     Text(dir.abbreviatingWithTildeInPath)
@@ -124,53 +129,58 @@ struct LauncherView: View {
             Text("Recents")
                 .font(.headline)
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 160, maximum: 240), spacing: 8)],
-                spacing: 8
-            ) {
-                ForEach(recentDirectories.prefix(8), id: \.path) { dir in
-                    recentCard(dir)
+            VStack(spacing: 0) {
+                ForEach(Array(recentDirectories.prefix(RecentDirectories.maxCount).enumerated()), id: \.element.path) { index, dir in
+                    recentRow(dir)
+                    if index < min(recentDirectories.count, RecentDirectories.maxCount) - 1 {
+                        Divider().padding(.leading, 34)
+                    }
                 }
             }
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 
-    private func recentCard(_ dir: URL) -> some View {
+    private func recentRow(_ dir: URL) -> some View {
         let isSelected = selectedDirectory == dir
         let isHovered = hoveredDirectory == dir
         return Button {
             selectedDirectory = dir
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: "folder.fill")
-                    .foregroundStyle(.orange.opacity(0.8))
+                    .foregroundStyle(.secondary)
                     .font(.callout)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(dir.lastPathComponent)
-                        .font(.callout.weight(.medium))
-                        .lineLimit(1)
+                    .frame(width: 16)
+                Text(dir.lastPathComponent)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if isHovered {
+                    Button {
+                        removeRecent(dir)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else {
                     Text(dir.deletingLastPathComponent().abbreviatingWithTildeInPath)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .truncationMode(.head)
                 }
-                Spacer(minLength: 0)
             }
-            .padding(10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 isSelected
                     ? Color.accentColor.opacity(0.15)
                     : isHovered ? Color.primary.opacity(0.04) : Color.clear
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(
-                        isSelected ? Color.accentColor.opacity(0.4) : Color.primary.opacity(0.08),
-                        lineWidth: 1
-                    )
             )
         }
         .buttonStyle(.plain)
@@ -192,13 +202,13 @@ struct LauncherView: View {
                         .foregroundStyle(.secondary)
                         .gridColumnAlignment(.trailing)
                     Picker("", selection: $model) {
-                        Text("Default").tag("")
-                        Text("claude-sonnet-4-5-20250929").tag("claude-sonnet-4-5-20250929")
-                        Text("claude-opus-4-6").tag("claude-opus-4-6")
-                        Text("claude-haiku-4-5-20251001").tag("claude-haiku-4-5-20251001")
+                        Text("Auto").tag("")
+                        ForEach(cliOptions.modelAliases, id: \.self) { alias in
+                            Text(alias.prefix(1).uppercased() + alias.dropFirst()).tag(alias)
+                        }
                     }
                     .labelsHidden()
-                    .frame(width: 280)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 GridRow {
@@ -206,13 +216,13 @@ struct LauncherView: View {
                         .foregroundStyle(.secondary)
                         .gridColumnAlignment(.trailing)
                     Picker("", selection: $permissionMode) {
-                        Text("Default").tag("")
-                        Text("Plan mode").tag("plan")
-                        Text("Auto-accept edits").tag("auto-edit")
-                        Text("Full auto").tag("full-auto")
+                        ForEach(cliOptions.permissionModes, id: \.self) { mode in
+                            Text(Self.permissionModeLabel(mode)).tag(mode)
+                        }
                     }
                     .labelsHidden()
-                    .frame(width: 280)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(skipPermissions)
                 }
             }
 
@@ -222,6 +232,21 @@ struct LauncherView: View {
                 Toggle("Verbose", isOn: $verbose)
             }
             .toggleStyle(.checkbox)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private static func permissionModeLabel(_ mode: String) -> String {
+        switch mode {
+        case "default": "Default"
+        case "plan": "Plan"
+        case "acceptEdits": "Accept Edits"
+        case "delegate": "Delegate"
+        case "dontAsk": "Don't Ask"
+        case "bypassPermissions": "Bypass Permissions"
+        default: mode
         }
     }
 
@@ -238,6 +263,16 @@ struct LauncherView: View {
         opts.continueSession = continueSession
         opts.verbose = verbose
         onLaunch?(dir, opts)
+    }
+
+    private func removeRecent(_ dir: URL) {
+        RecentDirectories.remove(dir)
+        withAnimation {
+            recentDirectories.removeAll { $0 == dir }
+        }
+        if selectedDirectory == dir {
+            selectedDirectory = nil
+        }
     }
 
     private func chooseFolder() {
@@ -258,13 +293,19 @@ struct LauncherView: View {
 // MARK: - Recent Directories
 
 enum RecentDirectories {
-    private static let maxCount = 10
+    static let maxCount = 10
 
     static func load() -> [URL] {
         guard let paths = UserDefaults.standard.stringArray(forKey: Defaults.recentDirectories) else {
             return []
         }
         return paths.map { URL(fileURLWithPath: $0) }
+    }
+
+    static func remove(_ url: URL) {
+        var paths = UserDefaults.standard.stringArray(forKey: Defaults.recentDirectories) ?? []
+        paths.removeAll { $0 == url.path }
+        UserDefaults.standard.set(paths, forKey: Defaults.recentDirectories)
     }
 
     static func add(_ url: URL) {
