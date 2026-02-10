@@ -232,12 +232,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         switch event {
         case "stop":
-            NotificationManager.shared.postTaskCompleted(sessionTitle: sessionTitle, sessionId: sessionId)
+            if UserDefaults.standard.bool(forKey: Defaults.activateOnStop), let uuid {
+                TabManager.shared.bringToFront(sessionId: uuid)
+                // Delay notification so it arrives after app activation completes.
+                // Immediate posting gets swallowed by macOS during the background→foreground transition.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationManager.shared.postTaskCompleted(sessionTitle: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
+                }
+            } else {
+                NotificationManager.shared.postTaskCompleted(sessionTitle: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
+            }
         case "permission_prompt":
             controller?.markNeedsAttention()
-            NotificationManager.shared.postPermissionRequired(sessionTitle: sessionTitle, sessionId: sessionId, message: message ?? "Needs your permission")
+            NotificationManager.shared.postPermissionRequired(sessionTitle: sessionTitle, sessionId: sessionId, message: message ?? "Needs your permission", isFrontmost: isFrontmost)
         case "idle_prompt":
-            NotificationManager.shared.postIdleReminder(sessionTitle: sessionTitle, sessionId: sessionId)
+            NotificationManager.shared.postIdleReminder(sessionTitle: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
         default:
             logger.warning("Unknown hook event: \(event, privacy: .public)")
         }
