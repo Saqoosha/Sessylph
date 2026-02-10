@@ -233,30 +233,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = uuid.flatMap { TabManager.shared.findController(for: $0) }
         let sessionTitle = controller?.session.title ?? "Claude Code"
         let taskDescription = controller?.lastWorkingTaskDescription ?? ""
-        let isFrontmost = controller?.window?.isKeyWindow == true && NSApp.isActive
+        let isAppActive = NSApp.isActive
+        let isTabVisible = controller?.window?.isKeyWindow == true && isAppActive
 
         // Build notification body: "DirName — Task description" or just "DirName"
         let notificationBody = taskDescription.isEmpty ? sessionTitle : "\(sessionTitle) — \(taskDescription)"
 
-        logger.info("Hook event: \(event, privacy: .public) session: \(sessionTitle, privacy: .public) (\(sessionId, privacy: .public)) frontmost: \(isFrontmost, privacy: .public) message: \(message ?? "", privacy: .public)")
+        logger.info("Hook event: \(event, privacy: .public) session: \(sessionTitle, privacy: .public) (\(sessionId, privacy: .public)) appActive: \(isAppActive, privacy: .public) tabVisible: \(isTabVisible, privacy: .public) message: \(message ?? "", privacy: .public)")
 
         switch event {
         case "stop":
-            if UserDefaults.standard.bool(forKey: Defaults.activateOnStop), let uuid, !isFrontmost {
+            if UserDefaults.standard.bool(forKey: Defaults.activateOnStop), let uuid, !isAppActive {
                 TabManager.shared.bringToFront(sessionId: uuid)
                 // Delay notification so it arrives after app activation completes.
                 // Immediate posting gets swallowed by macOS during the background→foreground transition.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    NotificationManager.shared.postTaskCompleted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isFrontmost)
+                    NotificationManager.shared.postTaskCompleted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
                 }
             } else {
-                NotificationManager.shared.postTaskCompleted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isFrontmost)
+                NotificationManager.shared.postTaskCompleted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
             }
         case "permission_prompt":
             controller?.markNeedsAttention()
-            NotificationManager.shared.postPermissionRequired(sessionTitle: notificationBody, sessionId: sessionId, message: message ?? "Needs your permission", isFrontmost: isFrontmost)
+            NotificationManager.shared.postPermissionRequired(sessionTitle: notificationBody, sessionId: sessionId, message: message ?? "Needs your permission", isFrontmost: isTabVisible)
         case "idle_prompt":
-            NotificationManager.shared.postIdleReminder(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isFrontmost)
+            NotificationManager.shared.postIdleReminder(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
         default:
             logger.warning("Unknown hook event: \(event, privacy: .public)")
         }
