@@ -15,6 +15,7 @@ enum Defaults {
     static let notificationsEnabled = "notificationsEnabled"
     static let notifyOnStop = "notifyOnStop"
     static let notifyOnPermission = "notifyOnPermission"
+    static let activateOnStop = "activateOnStop"
 
     // MARK: - Launcher Options
     static let launcherModel = "launcherModel"
@@ -39,6 +40,7 @@ enum Defaults {
             notifyOnPermission: true,
             terminalFontName: "Comic Code",
             terminalFontSize: 13.0,
+            activateOnStop: false,
         ])
     }
 }

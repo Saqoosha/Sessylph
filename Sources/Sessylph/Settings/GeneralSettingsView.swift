@@ -6,6 +6,7 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.notificationsEnabled) private var notificationsEnabled = true
     @AppStorage(Defaults.notifyOnStop) private var notifyOnStop = true
     @AppStorage(Defaults.notifyOnPermission) private var notifyOnPermission = true
+    @AppStorage(Defaults.activateOnStop) private var activateOnStop = false
     @AppStorage(Defaults.terminalFontSize) private var terminalFontSize = 13.0
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
@@ -37,6 +38,7 @@ struct GeneralSettingsView: View {
                     .disabled(!notificationsEnabled)
                 Toggle("Notify on Permission Request", isOn: $notifyOnPermission)
                     .disabled(!notificationsEnabled)
+                Toggle("Bring to Front on Task Completion", isOn: $activateOnStop)
             }
 
             Section("Terminal") {

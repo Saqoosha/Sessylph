@@ -23,25 +23,25 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func postTaskCompleted(sessionTitle: String, sessionId: String) {
+    func postTaskCompleted(sessionTitle: String, sessionId: String, isFrontmost: Bool) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnStop) else { return }
-        post(title: "✅ Task Completed", body: sessionTitle, sessionId: sessionId)
+        post(title: "✅ Task Completed", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
     }
 
-    func postPermissionRequired(sessionTitle: String, sessionId: String, message: String) {
+    func postPermissionRequired(sessionTitle: String, sessionId: String, message: String, isFrontmost: Bool) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
-        post(title: "❓ Permission Required", body: "\(sessionTitle): \(message)", sessionId: sessionId)
+        post(title: "❓ Permission Required", body: "\(sessionTitle): \(message)", sessionId: sessionId, isFrontmost: isFrontmost)
     }
 
-    func postIdleReminder(sessionTitle: String, sessionId: String) {
+    func postIdleReminder(sessionTitle: String, sessionId: String, isFrontmost: Bool) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
-        post(title: "⏳ Waiting for Input", body: sessionTitle, sessionId: sessionId)
+        post(title: "⏳ Waiting for Input", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
     }
 
     // MARK: - Private
 
-    private func post(title: String, body: String, sessionId: String) {
-        guard !isSessionFrontmost(sessionId: sessionId) else {
+    private func post(title: String, body: String, sessionId: String, isFrontmost: Bool) {
+        guard !isFrontmost else {
             logger.debug("Notification suppressed (session frontmost): \(title, privacy: .public) — \(body, privacy: .public)")
             return
         }
@@ -64,14 +64,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                 logger.error("Failed to post notification: \(error.localizedDescription)")
             }
         }
-    }
-
-    private func isSessionFrontmost(sessionId: String) -> Bool {
-        guard NSApp.isActive,
-              let uuid = UUID(uuidString: sessionId),
-              let controller = TabManager.shared.findController(for: uuid)
-        else { return false }
-        return controller.window?.isKeyWindow == true
     }
 
     // MARK: - UNUserNotificationCenterDelegate

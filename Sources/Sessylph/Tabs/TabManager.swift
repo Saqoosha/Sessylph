@@ -159,9 +159,19 @@ final class TabManager {
             return
         }
 
-        NSApp.activate()
-        window.tabGroup?.selectedWindow = window
-        window.makeKeyAndOrderFront(nil)
+        let activate = {
+            window.tabGroup?.selectedWindow = window
+            window.makeKeyAndOrderFront(nil)
+            NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+        }
+        if NSApp.isHidden {
+            NSApp.unhide(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                activate()
+            }
+        } else {
+            activate()
+        }
     }
 
     /// Finds a controller by session UUID, falling back to tmux session name match
