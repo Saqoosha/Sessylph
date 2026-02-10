@@ -232,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let uuid = UUID(uuidString: sessionId)
         let controller = uuid.flatMap { TabManager.shared.findController(for: $0) }
         let sessionTitle = controller?.session.title ?? "Claude Code"
-        let taskDescription = controller?.lastTaskDescription ?? ""
+        let taskDescription = controller?.lastWorkingTaskDescription ?? ""
         let isFrontmost = controller?.window?.isKeyWindow == true && NSApp.isActive
 
         // Build notification body: "DirName — Task description" or just "DirName"
