@@ -37,7 +37,7 @@ struct LauncherView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .scrollBounceBehavior(.basedOnSize)
         .contentMargins(.vertical, 0, for: .scrollContent)
-        .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 0) }
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .disabled(isLaunching)
         .defaultScrollAnchor(.center)
         .onAppear {

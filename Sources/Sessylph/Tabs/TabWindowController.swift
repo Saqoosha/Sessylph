@@ -84,6 +84,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.tabbingMode = .preferred
         window.tabbingIdentifier = "sh.saqoo.Sessylph.terminal"
         window.minSize = NSSize(width: 480, height: 320)
+        window.titlebarSeparatorStyle = .none
+        window.titlebarAppearsTransparent = true
 
         window.setContentSize(defaultSize)
         window.center()
