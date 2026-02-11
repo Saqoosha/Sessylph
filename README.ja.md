@@ -36,7 +36,7 @@
         ↓
   TmuxManager.createAndLaunchSession()  ← 単一の tmux 呼び出し
         ↓
-  TerminalViewController (xterm.js/WKWebView が tmux に接続)
+  TerminalViewController (GhosttyKit/Metal が tmux に接続)
 
 通知:
   Claude Code hook → sessylph-notifier CLI
@@ -84,7 +84,7 @@ Sources/
 │   ├── Notifications/     # Hook連携 + デスクトップ通知
 │   ├── Settings/          # 設定ウィンドウ (SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController
-│   ├── Terminal/          # xterm.js ターミナルビュー (WKWebView)
+│   ├── Terminal/          # GhosttyKit ターミナルビュー (Metal)
 │   ├── Tmux/              # tmux セッション管理
 │   └── Utilities/         # CLI パス解決, 環境変数, ヘルパー
 └── SessylphNotifier/      # バンドル済み CLI (hook → 通知ブリッジ)
@@ -92,7 +92,7 @@ Sources/
 
 ## 使用ライブラリ
 
-- [xterm.js](https://github.com/xtermjs/xterm.js) — Web 向けターミナルエミュレータ (WKWebView で描画)
+- [GhosttyKit (libghostty)](https://github.com/ghostty-org/ghostty) — Metal GPU レンダリング対応のターミナルエミュレータライブラリ
 
 ## ライセンス
 

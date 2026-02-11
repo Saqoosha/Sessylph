@@ -36,7 +36,7 @@ User opens new tab
         ↓
   TmuxManager.createAndLaunchSession()  ← single tmux invocation
         ↓
-  TerminalViewController (xterm.js/WKWebView attaches to tmux)
+  TerminalViewController (GhosttyKit/Metal attaches to tmux)
 
 Notifications:
   Claude Code hook → sessylph-notifier CLI
@@ -84,7 +84,7 @@ Sources/
 │   ├── Notifications/     # Hook integration + desktop notifications
 │   ├── Settings/          # Preferences window (SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController
-│   ├── Terminal/          # xterm.js terminal view (WKWebView)
+│   ├── Terminal/          # GhosttyKit terminal view (Metal)
 │   ├── Tmux/              # tmux session management
 │   └── Utilities/         # CLI resolvers, environment, helpers
 └── SessylphNotifier/      # Bundled CLI for hook → notification bridge
@@ -92,7 +92,7 @@ Sources/
 
 ## Third-Party Libraries
 
-- [xterm.js](https://github.com/xtermjs/xterm.js) — Terminal emulator for the web (rendered in WKWebView)
+- [GhosttyKit (libghostty)](https://github.com/ghostty-org/ghostty) — Terminal emulator library with Metal GPU rendering
 
 ## License
 
