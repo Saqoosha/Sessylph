@@ -231,8 +231,19 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         keyTextAccumulator = []
         interpretKeyEvents([event])
 
-        // If we had or now have marked text, IME is handling this — don't send key event
-        if hadMarkedText || hasMarkedText() {
+        // IME just committed text (was marked → now unmarked): send committed text directly
+        if hadMarkedText && !hasMarkedText() {
+            let committed = keyTextAccumulator.joined()
+            if !committed.isEmpty {
+                committed.withCString { cStr in
+                    ghostty_surface_text(surface, cStr, UInt(committed.utf8.count))
+                }
+            }
+            return
+        }
+
+        // IME is still composing — don't send key event
+        if hasMarkedText() {
             return
         }
 
@@ -382,9 +393,10 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     // MARK: - NSTextInputClient (IME support)
 
     func insertText(_ string: Any, replacementRange: NSRange) {
-        guard surface != nil else { return }
-        // Clear marked text
+        guard let surface else { return }
+        // Clear marked text and preedit display
         markedText.mutableString.setString("")
+        ghostty_surface_preedit(surface, nil, 0)
 
         let text: String
         if let attrStr = string as? NSAttributedString {
