@@ -32,3 +32,6 @@ Package.resolved
 
 # Temporary files
 /tmp/
+
+# Large binary (built from ghostty source)
+ghostty/Vendor/libghostty.a
