@@ -22,11 +22,12 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "**/WebResources/**"
-      - path: Sources/Sessylph/Terminal/WebResources
+          - "**/TerminalBridge.swift"
+          - "**/PTYProcess.swift"
+      - path: ghostty/Vendor
         type: folder
-        buildPhase: resources
+        buildPhase: none
     dependencies:
-      - sdk: WebKit.framework
       - target: SessylphNotifier
     postCompileScripts:
       - script: |
@@ -43,6 +44,20 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Sessylph.entitlements
         DEVELOPMENT_TEAM: G5G54TCH8W
         CODE_SIGN_STYLE: Automatic
+        SWIFT_INCLUDE_PATHS: "$(SRCROOT)/ghostty/Vendor"
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/ghostty/Vendor"
+        LIBRARY_SEARCH_PATHS: "$(SRCROOT)/ghostty/Vendor"
+        OTHER_LDFLAGS:
+          - "-lghostty"
+          - "-lz"
+          - "-lc++"
+          - "-framework Metal"
+          - "-framework MetalKit"
+          - "-framework IOSurface"
+          - "-framework Carbon"
+          - "-framework CoreGraphics"
+          - "-framework CoreText"
+          - "-framework QuartzCore"
     info:
       path: Sources/Sessylph/App/Info.plist
       properties:

@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Defaults.register()
+        GhosttyApp.shared.initialize()
         setupMenu()
         installTabSwitchMonitor()
         setupDistributedNotificationListener()
@@ -30,7 +31,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        TabManager.shared.needsPtyRefresh = true
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -80,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             tabSwitchMonitor = nil
         }
+        GhosttyApp.shared.shutdown()
         logger.info("Sessylph terminating")
     }
 
