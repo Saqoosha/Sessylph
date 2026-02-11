@@ -24,6 +24,24 @@ enum ClaudeCLI {
         )
     }
 
+    /// Resolves the path to the `happy` executable (Happy CLI).
+    static func happyPath() throws -> String {
+        try resolve(
+            name: "happy",
+            knownPaths: [
+                "\(NSHomeDirectory())/Library/pnpm/happy",
+                "\(NSHomeDirectory())/.local/bin/happy",
+                "/usr/local/bin/happy",
+                "/opt/homebrew/bin/happy",
+            ]
+        )
+    }
+
+    /// Returns the Happy CLI version string, or nil if not available.
+    static func happyVersion() -> String? {
+        versionOutput(for: happyPath, firstLineOnly: true)
+    }
+
     /// Resolves the path to the `tmux` executable.
     static func tmuxPath() throws -> String {
         try resolve(
@@ -38,7 +56,12 @@ enum ClaudeCLI {
 
     /// Returns the Claude Code version string, or nil if not available.
     static func claudeVersion() -> String? {
-        guard let path = try? claudePath() else { return nil }
+        versionOutput(for: claudePath)
+    }
+
+    /// Runs `--version` on the executable and returns the output.
+    private static func versionOutput(for pathProvider: () throws -> String, firstLineOnly: Bool = false) -> String? {
+        guard let path = try? pathProvider() else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["--version"]
@@ -57,7 +80,8 @@ enum ClaudeCLI {
         // Read before waitUntilExit to avoid pipe buffer deadlock
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return firstLineOnly ? output?.components(separatedBy: "\n").first : output
     }
 
     // MARK: - CLI Options Discovery

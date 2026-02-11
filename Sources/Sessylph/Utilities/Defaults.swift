@@ -6,6 +6,7 @@ enum Defaults {
     static let defaultPermissionMode = "defaultPermissionMode"
     static let claudePathOverride = "claudePathOverride"
     static let tmuxPathOverride = "tmuxPathOverride"
+    static let useHappyCLI = "useHappyCLI"
 
     // MARK: - Appearance
     static let terminalFontName = "terminalFontName"
