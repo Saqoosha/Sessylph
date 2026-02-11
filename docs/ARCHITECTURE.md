@@ -21,8 +21,10 @@ Internal architecture documentation for developers.
 │  │  TabWindowController                  │      │
 │  │  ┌─────────────┐ ┌─────────────────┐ │      │
 │  │  │ LauncherView│→│TerminalView     │ │      │
-│  │  │  (SwiftUI)  │ │(xterm.js/WebView)│ │      │
+│  │  │  (SwiftUI)  │ │(GhosttyKit/    │ │      │
+│  │  │             │ │ Metal)          │ │      │
 │  │  └─────────────┘ └────────┬────────┘ │      │
+│  │                    ClaudeStateTracker │      │
 │  └────────────────────────────┼──────────┘      │
 │                               │                  │
 │  ┌────────────────────────────┴──────────┐      │
@@ -50,12 +52,16 @@ Sources/
 │   ├── Notifications/    NotificationManager, HookSettingsGenerator
 │   ├── Resources/        Assets
 │   ├── Settings/         SettingsWindow, GeneralSettingsView, SessionConfigSheet
-│   ├── Tabs/             TabManager, TabWindowController
-│   ├── Terminal/         TerminalViewController (xterm.js/WKWebView host), TerminalBridge, WebResources/
+│   ├── Tabs/             TabManager, TabWindowController, ClaudeStateTracker
+│   ├── Terminal/         GhosttyTerminalView, GhosttyApp, GhosttyConfig,
+│   │                     GhosttyInputHandler, TerminalViewController
 │   ├── Tmux/             TmuxManager
-│   └── Utilities/        ClaudeCLI, EnvironmentBuilder, Defaults, ShellQuote, ImagePasteHelper
-└── SessylphNotifier/
-    └── main.swift         Bundled CLI for hook → DistributedNotification bridge
+│   └── Utilities/        ClaudeCLI, EnvironmentBuilder, Defaults, ShellQuote,
+│                         ImagePasteHelper, PermissionMode, RecentDirectories
+├── SessylphNotifier/
+│   └── main.swift         Bundled CLI for hook → DistributedNotification bridge
+ghostty/
+└── Vendor/               ghostty.h, libghostty.a (LFS), module.modulemap
 ```
 
 ## Core Components
@@ -83,6 +89,7 @@ Central registry of all open `TabWindowController` instances.
 - `findController(for:)` — Locate controller by Session ID
 - `bringToFront(sessionId:)` — Navigate to a specific tab (handles hidden app state with unhide + delayed activate)
 - `saveActiveSessionId()` / `restoreActiveTab()` — Persist active tab across restarts
+- `addToTabGroup(_:in:)` — Private helper deduplicating tab group insertion logic
 
 ### TabWindowController (@MainActor)
 
@@ -104,28 +111,50 @@ User clicks "Start Claude" in LauncherView
   → Switch to TerminalViewController → attachToTmux()
 ```
 
-**Title polling:** Every 1 second, queries tmux pane title and parses Claude Code's status emoji:
+**State tracking:** Delegates to `ClaudeStateTracker`, which polls tmux pane title every 1 second and parses Claude Code's status emoji:
 - `✳` (U+2733) → idle
-- Braille spinner (U+2800–U+28FF) → working
+- Braille spinner (U+2800–U+28FF) → working (animated spinner in tab title)
+- `needsAttention` flag → set by notification hooks
+
+### ClaudeStateTracker
+
+Extracted from TabWindowController. Encapsulates:
+- `ClaudeState` enum (idle, working, needsAttention, unknown)
+- `parseClaudeTitle()` — Maps terminal title prefix to state
+- Timer-based polling (1s interval on main run loop, works for inactive tabs)
+- Tab title spinner animation
+- `ClaudeStateTrackerDelegate` protocol for state change notifications
 
 ### TerminalViewController
 
-Hosts xterm.js inside a `WKWebView`, attaching to tmux via a PTY process running `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
+Hosts a `GhosttyTerminalView` (Metal-rendered NSView), attaching to tmux via a PTY process running `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
 
-**Scrollback preloading:** On reattach, `capture-pane -p -e -J -S -1000` fetches tmux history (with trailing spaces stripped and wrapped lines joined) and feeds it to xterm.js before PTY attach. Pre-fed history stays in xterm.js scrollback; tmux's cursor-positioning redraw only overwrites the viewport. After PTY attachment, the GPU renderer's glyph texture atlas is cleared to ensure preloaded content renders with the correct custom font (prevents stale glyphs from early writes before the font was fully loaded).
+**Working directory isolation:** The ghostty surface uses `/tmp` as its working directory (not the project directory) to avoid triggering macOS TCC prompts for ~/Documents. The actual working directory is managed by tmux via `new-session -c`.
 
-**Scrollbar:** macOS 26 Tahoe-style scrollbar with auto-hide behavior. Shows on scroll activity, fades out after 500ms of inactivity, stays visible on hover. CSS overrides xterm.js's `.visible`/`.invisible` class system; JS toggles a `.scrollbar-visible` class on the `.scrollbar.vertical` element.
+### Terminal Rendering (GhosttyKit)
 
-**PTY size refresh:** On app activation, queries tmux's actual window size via `display-message -p '#{window_width},#{window_height}'` and only performs a SIGWINCH bounce (rows+1 → rows) if sizes differ. Normal tab switching skips this entirely.
+**GhosttyTerminalView** (NSView) — Wraps a ghostty surface for Metal-accelerated terminal rendering.
+- Creates `ghostty_surface_t` with command, working directory, and environment variables
+- C interop: uses `strdup()`/`free()` for env var strings to ensure pointer lifetime safety
+- Handles title changes and process exit via callbacks
+- `nonisolated(unsafe)` surface property allows deinit cleanup
 
-**TerminalBridge** — Bridges Swift ↔ JavaScript via `WKScriptMessageHandler`. Handles resize events, keyboard input, focus management, and data flow between PTY and xterm.js.
+**GhosttyApp** (singleton) — Manages the `ghostty_app_t` lifecycle.
+- Initializes ghostty runtime with config from `GhosttyConfig`
+- Handles action dispatch (new tab, close surface, render, clipboard operations)
+- Clipboard callbacks dispatched to main queue for thread safety
+- `surfaceView(from:)` helper to resolve surface → NSView
 
-**Event handling (via xterm.js + JavaScript):**
-- Shift+Enter → sends literal newline (LF)
-- Cmd+V → image paste via `ImagePasteHelper`
-- Selection → auto-copy to clipboard
-- URL click detection → open in browser
-- Scroll wheel → xterm.js native scrollback (tmux mouse off)
+**GhosttyConfig** — Builds ghostty configuration from user preferences.
+- Font family + size from `UserDefaults`
+- Scrollback lines, cursor style, theme
+- tmux-friendly terminal overrides
+
+**GhosttyInputHandler** — Routes keyboard and IME input to ghostty.
+- `keyDown()` passes raw virtual keycodes + accumulated text
+- `insertText()` accumulates IME text for the next `keyDown()`
+- `doCommand(by:)` overridden to suppress NSBeep on backspace
+- Copy/paste implemented via `copy(_ sender:)` / `paste(_ sender:)` responders
 
 ### TmuxManager (Sendable)
 
@@ -139,7 +168,9 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 ### Models
 
 **Session** (Identifiable, Codable, Sendable)
-- `id`, `directory`, `options`, `tmuxSessionName`, `title`, `isRunning`, timestamps
+- `id`, `directory`, `options`, `tmuxSessionName`, `isRunning`, `createdAt`
+- `title` is computed from `directory.lastPathComponent`
+- `CodingKeys` excludes `isRunning` (transient runtime state)
 
 **ClaudeCodeOptions** (Codable, Sendable)
 - Model selection, permission modes, tool allow/deny lists, session flags, budget, system prompt, MCP configs
@@ -193,15 +224,18 @@ User clicks notification
 | Utility | Purpose |
 |---------|---------|
 | `ClaudeCLI` | Resolves `claude` and `tmux` binary paths dynamically |
-| `EnvironmentBuilder` | Captures login shell environment for process spawning |
-| `ShellQuote` | Safe shell argument quoting |
+| `EnvironmentBuilder` | Captures login shell environment (thread-safe with `OSAllocatedUnfairLock`) |
+| `ShellQuote` | Safe shell argument quoting (enum namespace) |
 | `ImagePasteHelper` | Extracts images from pasteboard, saves to temp, returns path |
+| `PermissionMode` | Shared permission mode label formatting |
+| `RecentDirectories` | Recent directory picker history |
 
 ## Concurrency Model
 
-- **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow
+- **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow, ClaudeStateTracker
 - **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions
-- **Bridge pattern:** xterm.js ↔ Swift via WKScriptMessageHandler (TerminalBridge)
+- **Thread safety:** `OSAllocatedUnfairLock` for `EnvironmentBuilder` cache, `DispatchQueue.main.async` for ghostty clipboard callbacks
+- **C interop:** `nonisolated(unsafe)` on ghostty surface property for deinit access
 
 ## Session Persistence & Reattachment
 

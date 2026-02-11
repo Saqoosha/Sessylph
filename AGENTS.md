@@ -6,7 +6,7 @@ macOS native app wrapping Claude Code CLI with tabs, tmux session management, no
 ## Tech Stack
 - macOS 15.0+ (Sequoia), Swift 6
 - AppKit-primary + SwiftUI for settings/dialogs
-- xterm.js in WKWebView for terminal emulation
+- GhosttyKit (libghostty) for Metal-accelerated terminal rendering
 - tmux for session management (enables remote SSH access)
 - xcodegen for project generation from `project.yml`
 
@@ -27,13 +27,24 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 
 ## Architecture
 - Each tab = one tmux session running Claude Code
-- xterm.js (WKWebView) connects via PTY to `tmux attach-session`
-- Terminal rendering: xterm.js with WebGL → Canvas → DOM fallback chain
-- Scrollback preloading: `capture-pane -p -e -J` feeds tmux history to xterm.js on reattach
-- macOS-native auto-hiding scrollbar (show on scroll, fade after 500ms)
+- GhosttyKit (Metal) terminal view connects via PTY to `tmux attach-session`
+- Terminal rendering: GhosttyKit (libghostty) with native Metal GPU rendering
+- `ClaudeStateTracker` parses terminal title to detect idle/working/attention states
 - Notifications via Claude Code hooks + sessylph-notifier CLI → DistributedNotificationCenter
 - Sessions survive app restart (tmux persistence)
 - Native window tabbing: `NSWindow.tabbingMode = .preferred`
+
+## Key Source Files
+- `GhosttyTerminalView.swift` — NSView wrapping ghostty surface (Metal rendering, input handling)
+- `GhosttyApp.swift` — ghostty_app lifecycle, action dispatch, clipboard callbacks
+- `GhosttyConfig.swift` — ghostty configuration (font, theme, scrollback)
+- `GhosttyInputHandler.swift` — keyboard/IME input routing to ghostty
+- `TerminalViewController.swift` — tab content controller, tmux attach orchestration
+- `TabWindowController.swift` — NSWindowController, tab management, state delegation
+- `ClaudeStateTracker.swift` — title polling, Claude idle/working/attention state machine
+- `TmuxManager.swift` — tmux session lifecycle (create, configure, attach, destroy)
+- `EnvironmentBuilder.swift` — login shell environment capture (thread-safe cached)
+- `TabManager.swift` — multi-window tab group coordination
 
 ## Key Patterns
 - Bundle ID: sh.saqoo.Sessylph
@@ -41,3 +52,6 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - VCS: jj (Jujutsu)
 - CLI paths resolved dynamically (claude, tmux)
 - Login shell environment captured for process spawning
+- C interop: `strdup`/`free` for env vars passed to ghostty (pointer lifetime safety)
+- Thread safety: `OSAllocatedUnfairLock` for shared mutable state
+- TCC mitigation: all `Process()` and ghostty surface use `/tmp` as working directory
