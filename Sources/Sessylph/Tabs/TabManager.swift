@@ -27,7 +27,22 @@ final class TabManager {
     func newTab(in existingWindow: NSWindow? = nil) {
         let controller = TabWindowController()
         windowControllers.append(controller)
+        addToTabGroup(controller, in: existingWindow)
 
+        logger.info("New launcher tab opened")
+    }
+
+    /// Creates a tab with directory pre-selected (e.g. drag-and-drop).
+    func newTab(directory: URL, in existingWindow: NSWindow? = nil) async {
+        let controller = TabWindowController()
+        windowControllers.append(controller)
+        addToTabGroup(controller, in: existingWindow)
+
+        // Auto-launch with the given directory
+        await controller.launchClaude(directory: directory, options: ClaudeCodeOptions())
+    }
+
+    private func addToTabGroup(_ controller: TabWindowController, in existingWindow: NSWindow?) {
         if let existingWindow {
             guard let newWindow = controller.window else {
                 logger.error("New tab has no window")
@@ -38,28 +53,6 @@ final class TabManager {
         } else {
             controller.showWindow(nil)
         }
-
-        logger.info("New launcher tab opened")
-    }
-
-    /// Creates a tab with directory pre-selected (e.g. drag-and-drop).
-    func newTab(directory: URL, in existingWindow: NSWindow? = nil) async {
-        let controller = TabWindowController()
-        windowControllers.append(controller)
-
-        if let existingWindow {
-            guard let newWindow = controller.window else {
-                logger.error("New tab (directory) has no window")
-                return
-            }
-            existingWindow.addTabbedWindow(newWindow, ordered: .above)
-            newWindow.makeKeyAndOrderFront(nil)
-        } else {
-            controller.showWindow(nil)
-        }
-
-        // Auto-launch with the given directory
-        await controller.launchClaude(directory: directory, options: ClaudeCodeOptions())
     }
 
     /// Closes a tab, showing a confirmation alert if a session is running.

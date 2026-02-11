@@ -14,7 +14,7 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
 
     // MARK: - State
 
-    private(set) var surface: ghostty_surface_t?
+    nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
     private var markedText = NSMutableAttributedString()
     private var trackingArea: NSTrackingArea?
     /// Text accumulated from insertText() during interpretKeyEvents, consumed by keyDown
@@ -46,10 +46,11 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
     }
 
-    func createSurface(command: String, workingDirectory: String?, envVars: [(String, String)] = []) {
+    @discardableResult
+    func createSurface(command: String, workingDirectory: String?, envVars: [(String, String)] = []) -> Bool {
         guard let app = GhosttyApp.shared.app else {
             logger.error("GhosttyApp not initialized")
-            return
+            return false
         }
 
         let scale = backingScaleFactor
@@ -90,7 +91,7 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
 
         guard surface != nil else {
             logger.error("ghostty_surface_new returned nil")
-            return
+            return false
         }
 
         // Set content scale explicitly (viewDidMoveToWindow fires before surface exists)
@@ -104,32 +105,32 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
 
         updateTrackingAreas()
         logger.info("Surface created: \(self.bounds.width)x\(self.bounds.height) pts, \(backingWidth)x\(backingHeight) px, scale=\(scale)")
+        return true
     }
 
     private func createSurfaceWithEnvVars(app: ghostty_app_t, config: inout ghostty_surface_config_s, envVars: [(String, String)]) {
-        // Build C-compatible env var array with proper lifetime
-        var keys = envVars.map { $0.0.utf8CString }
-        var values = envVars.map { $0.1.utf8CString }
+        // Create C strings that persist for the duration of this method
+        var cKeys = envVars.map { strdup($0.0) }
+        var cValues = envVars.map { strdup($0.1) }
+        defer {
+            cKeys.forEach { free($0) }
+            cValues.forEach { free($0) }
+        }
 
-        keys.withUnsafeMutableBufferPointer { keysBuffer in
-            values.withUnsafeMutableBufferPointer { valuesBuffer in
-                var cEnvVars: [ghostty_env_var_s] = []
-                for i in 0..<envVars.count {
-                    keysBuffer[i].withUnsafeMutableBufferPointer { keyBuf in
-                        valuesBuffer[i].withUnsafeMutableBufferPointer { valBuf in
-                            cEnvVars.append(ghostty_env_var_s(
-                                key: keyBuf.baseAddress,
-                                value: valBuf.baseAddress
-                            ))
-                        }
-                    }
-                }
-                cEnvVars.withUnsafeMutableBufferPointer { envBuf in
-                    config.env_vars = envBuf.baseAddress
-                    config.env_var_count = envVars.count
-                    self.surface = ghostty_surface_new(app, &config)
-                }
-            }
+        var cEnvVars = (0..<envVars.count).map { i in
+            ghostty_env_var_s(key: cKeys[i], value: cValues[i])
+        }
+
+        cEnvVars.withUnsafeMutableBufferPointer { envBuf in
+            config.env_vars = envBuf.baseAddress
+            config.env_var_count = envVars.count
+            self.surface = ghostty_surface_new(app, &config)
+        }
+    }
+
+    deinit {
+        if let surface {
+            ghostty_surface_free(surface)
         }
     }
 
@@ -200,7 +201,8 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         guard ghostty_surface_read_selection(surface, &textStruct) else { return }
         defer { ghostty_surface_free_text(surface, &textStruct) }
         if let ptr = textStruct.text, textStruct.text_len > 0 {
-            let str = String(cString: ptr)
+            let data = Data(bytes: ptr, count: Int(textStruct.text_len))
+            let str = String(data: data, encoding: .utf8) ?? String(cString: ptr)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(str, forType: .string)
         }
@@ -421,7 +423,7 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
 
     func markedRange() -> NSRange {
         guard markedText.length > 0 else { return NSRange() }
-        return NSRange(0...(markedText.length - 1))
+        return NSRange(location: 0, length: markedText.length)
     }
 
     func selectedRange() -> NSRange {

@@ -145,11 +145,19 @@ final class TerminalViewController: NSViewController {
             self.delegate?.terminalProcessDidTerminate(self, exitCode: nil)
         }
 
-        ghosttyView.createSurface(
+        // Working directory is managed by tmux (set via new-session -c),
+        // so ghostty only needs a safe CWD for the tmux attach process itself.
+        // Using /tmp avoids triggering macOS TCC prompts for ~/Documents.
+        let success = ghosttyView.createSurface(
             command: command,
-            workingDirectory: session.directory.path,
+            workingDirectory: NSTemporaryDirectory(),
             envVars: envVars
         )
+
+        guard success else {
+            feedError("Failed to create terminal surface")
+            return
+        }
 
         logger.info("Attached to tmux session: \(self.session.tmuxSessionName)")
     }

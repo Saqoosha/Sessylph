@@ -48,9 +48,11 @@ final class GhosttyApp {
         }
         runtimeConfig.read_clipboard_cb = { userdata, clipboard, state in
             guard let state else { return }
-            let content = NSPasteboard.general.string(forType: .string) ?? ""
-            content.withCString { cStr in
-                ghostty_surface_complete_clipboard_request(state, cStr, state, true)
+            DispatchQueue.main.async {
+                let content = NSPasteboard.general.string(forType: .string) ?? ""
+                content.withCString { cStr in
+                    ghostty_surface_complete_clipboard_request(state, cStr, state, true)
+                }
             }
         }
         runtimeConfig.confirm_read_clipboard_cb = nil
@@ -61,8 +63,10 @@ final class GhosttyApp {
             let firstContent = content.pointee
             if let textPtr = firstContent.data {
                 let text = String(cString: textPtr)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
+                DispatchQueue.main.async {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }
             }
         }
         runtimeConfig.close_surface_cb = { userdata, processAlive in
@@ -94,7 +98,15 @@ final class GhosttyApp {
 
     // MARK: - Action Handling
 
+    private func surfaceView(from target: ghostty_target_s) -> GhosttyTerminalView? {
+        guard target.tag == GHOSTTY_TARGET_SURFACE,
+              let surface = target.target.surface else { return nil }
+        guard let userdata = ghostty_surface_userdata(surface) else { return nil }
+        return Unmanaged<GhosttyTerminalView>.fromOpaque(userdata).takeUnretainedValue()
+    }
+
     private func handleAction(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
         switch action.tag {
         case GHOSTTY_ACTION_SET_TITLE:
             return handleSetTitle(target: target, action: action.action.set_title)
@@ -119,13 +131,9 @@ final class GhosttyApp {
     }
 
     private func handleSetTitle(target: ghostty_target_s, action: ghostty_action_set_title_s) -> Bool {
-        guard target.tag == GHOSTTY_TARGET_SURFACE,
-              let surface = target.target.surface else { return false }
-        let userdata = ghostty_surface_userdata(surface)
-        guard let userdata else { return false }
+        guard let view = surfaceView(from: target) else { return false }
         guard let titlePtr = action.title else { return false }
         let title = String(cString: titlePtr)
-        let view = Unmanaged<GhosttyTerminalView>.fromOpaque(userdata).takeUnretainedValue()
         view.onTitleChange?(title)
         return true
     }
@@ -141,31 +149,19 @@ final class GhosttyApp {
     }
 
     private func handleCloseWindow(target: ghostty_target_s) -> Bool {
-        guard target.tag == GHOSTTY_TARGET_SURFACE,
-              let surface = target.target.surface else { return false }
-        let userdata = ghostty_surface_userdata(surface)
-        guard let userdata else { return false }
-        let view = Unmanaged<GhosttyTerminalView>.fromOpaque(userdata).takeUnretainedValue()
+        guard let view = surfaceView(from: target) else { return false }
         view.onProcessExit?()
         return true
     }
 
     private func handleChildExited(target: ghostty_target_s, action: ghostty_surface_message_childexited_s) -> Bool {
-        guard target.tag == GHOSTTY_TARGET_SURFACE,
-              let surface = target.target.surface else { return false }
-        let userdata = ghostty_surface_userdata(surface)
-        guard let userdata else { return false }
-        let view = Unmanaged<GhosttyTerminalView>.fromOpaque(userdata).takeUnretainedValue()
+        guard let view = surfaceView(from: target) else { return false }
         view.onProcessExit?()
         return true
     }
 
     private func handleScrollbar(target: ghostty_target_s, action: ghostty_action_scrollbar_s) -> Bool {
-        guard target.tag == GHOSTTY_TARGET_SURFACE,
-              let surface = target.target.surface else { return false }
-        let userdata = ghostty_surface_userdata(surface)
-        guard let userdata else { return false }
-        let view = Unmanaged<GhosttyTerminalView>.fromOpaque(userdata).takeUnretainedValue()
+        guard let view = surfaceView(from: target) else { return false }
         view.updateScrollbar(total: action.total, offset: action.offset, len: action.len)
         return true
     }

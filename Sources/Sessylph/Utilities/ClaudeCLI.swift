@@ -42,6 +42,7 @@ enum ClaudeCLI {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["--version"]
+        process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -95,6 +96,7 @@ enum ClaudeCLI {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["--help"]
+        process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -154,6 +156,7 @@ enum ClaudeCLI {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shell)
         process.arguments = ["-l", "-c", "which \(name)"]
+        process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
 
         let pipe = Pipe()
         process.standardOutput = pipe

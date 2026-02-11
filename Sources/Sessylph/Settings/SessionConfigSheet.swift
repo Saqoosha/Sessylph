@@ -21,7 +21,7 @@ struct SessionConfigSheet: View {
                     Picker("Permission Mode", selection: binding(for: \.permissionMode)) {
                         Text("Default").tag("")
                         ForEach(cliOptions.permissionModes.filter({ $0 != "default" }), id: \.self) { mode in
-                            Text(Self.permissionModeLabel(mode)).tag(mode)
+                            Text(PermissionMode.label(for: mode)).tag(mode)
                         }
                     }
 
@@ -58,18 +58,6 @@ struct SessionConfigSheet: View {
         .frame(width: 400, height: 350)
         .onAppear {
             cliOptions = ClaudeCLI.discoverCLIOptions()
-        }
-    }
-
-    private static func permissionModeLabel(_ mode: String) -> String {
-        switch mode {
-        case "default": "Default"
-        case "plan": "Plan"
-        case "acceptEdits": "Accept Edits"
-        case "delegate": "Delegate"
-        case "dontAsk": "Don't Ask"
-        case "bypassPermissions": "Bypass Permissions"
-        default: mode
         }
     }
 

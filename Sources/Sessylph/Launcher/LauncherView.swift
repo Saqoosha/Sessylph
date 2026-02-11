@@ -218,7 +218,7 @@ struct LauncherView: View {
                         .gridColumnAlignment(.trailing)
                     Picker("", selection: $permissionMode) {
                         ForEach(cliOptions.permissionModes, id: \.self) { mode in
-                            Text(Self.permissionModeLabel(mode)).tag(mode)
+                            Text(PermissionMode.label(for: mode)).tag(mode)
                         }
                     }
                     .labelsHidden()
@@ -234,20 +234,6 @@ struct LauncherView: View {
             }
             .toggleStyle(.checkbox)
             .frame(maxWidth: .infinity)
-        }
-    }
-
-    // MARK: - Helpers
-
-    private static func permissionModeLabel(_ mode: String) -> String {
-        switch mode {
-        case "default": "Default"
-        case "plan": "Plan"
-        case "acceptEdits": "Accept Edits"
-        case "delegate": "Delegate"
-        case "dontAsk": "Don't Ask"
-        case "bypassPermissions": "Bypass Permissions"
-        default: mode
         }
     }
 
@@ -288,43 +274,6 @@ struct LauncherView: View {
         if panel.runModal() == .OK, let url = panel.url {
             selectedDirectory = url
         }
-    }
-}
-
-// MARK: - Recent Directories
-
-enum RecentDirectories {
-    static let maxCount = 10
-
-    static func load() -> [URL] {
-        guard let paths = UserDefaults.standard.stringArray(forKey: Defaults.recentDirectories) else {
-            return []
-        }
-        return paths.map { URL(fileURLWithPath: $0) }
-    }
-
-    static func remove(_ url: URL) {
-        var paths = UserDefaults.standard.stringArray(forKey: Defaults.recentDirectories) ?? []
-        paths.removeAll { $0 == url.path }
-        UserDefaults.standard.set(paths, forKey: Defaults.recentDirectories)
-    }
-
-    static func add(_ url: URL) {
-        var paths = UserDefaults.standard.stringArray(forKey: Defaults.recentDirectories) ?? []
-        paths.removeAll { $0 == url.path }
-        paths.insert(url.path, at: 0)
-        if paths.count > maxCount {
-            paths = Array(paths.prefix(maxCount))
-        }
-        UserDefaults.standard.set(paths, forKey: Defaults.recentDirectories)
-    }
-}
-
-// MARK: - URL Extension
-
-extension URL {
-    var abbreviatingWithTildeInPath: String {
-        (path as NSString).abbreviatingWithTildeInPath
     }
 }
 

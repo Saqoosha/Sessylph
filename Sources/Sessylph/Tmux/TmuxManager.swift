@@ -259,6 +259,7 @@ final class TmuxManager: Sendable {
                 process.executableURL = URL(fileURLWithPath: tmuxPath)
                 process.arguments = args
                 process.environment = environment
+                process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
 
                 let stdoutPipe = Pipe()
                 let stderrPipe = Pipe()

@@ -25,7 +25,7 @@ struct GeneralSettingsView: View {
 
                 Picker("Permission Mode", selection: $defaultPermissionMode) {
                     ForEach(cliOptions.permissionModes, id: \.self) { mode in
-                        Text(Self.permissionModeLabel(mode)).tag(mode)
+                        Text(PermissionMode.label(for: mode)).tag(mode)
                     }
                 }
             }
@@ -79,15 +79,4 @@ struct GeneralSettingsView: View {
         }
     }
 
-    private static func permissionModeLabel(_ mode: String) -> String {
-        switch mode {
-        case "default": "Default"
-        case "plan": "Plan"
-        case "acceptEdits": "Accept Edits"
-        case "delegate": "Delegate"
-        case "dontAsk": "Don't Ask"
-        case "bypassPermissions": "Bypass Permissions"
-        default: mode
-        }
-    }
 }
