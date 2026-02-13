@@ -60,6 +60,7 @@ Analyze the actual code changes and write user-friendly release notes:
 **Important:**
 - Do NOT include a top-level title (e.g., `## Sessylph X.Y.Z`) — GitHub already shows the release title, so it would be duplicated
 - Do NOT include a Requirements section — it's static and doesn't need to be repeated every release
+- **Bug Fixes section should only include fixes for bugs that existed in the previous released version.** Do NOT include bug fixes that were made during the implementation of a new feature in the same release cycle (those are part of the feature development, not separate bug fixes).
 
 ### 5. Update GitHub Release
 
