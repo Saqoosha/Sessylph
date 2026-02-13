@@ -221,6 +221,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         attachToTmux()
         stateTracker.startTitlePolling()
 
+        // Explicitly focus the terminal — windowDidBecomeKey already fired
+        // before the session was running, so it skipped focusTerminal().
+        terminalVC?.focusTerminal()
+
         logger.info("Launched Claude in \(directory.path)")
     }
 
