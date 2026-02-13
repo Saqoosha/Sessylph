@@ -80,6 +80,10 @@ final class TmuxManager: Sendable {
         ";", "set-option", "-g", "window-size", "latest",
         // Mouse off — let xterm.js handle scroll natively via its scrollback buffer.
         ";", "set-option", "-g", "mouse", "off",
+        // Remove CLAUDECODE from tmux global environment so new sessions don't
+        // inherit it — Claude Code treats its presence as a nested session and
+        // refuses to start.
+        ";", "set-environment", "-gu", "CLAUDECODE",
     ]
 
     /// Configures an existing tmux session for title passthrough.

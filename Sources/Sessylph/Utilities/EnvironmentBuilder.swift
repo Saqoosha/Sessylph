@@ -5,6 +5,11 @@ import os.log
 private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "EnvironmentBuilder")
 
 enum EnvironmentBuilder {
+    /// Environment variables that must not be propagated to child processes.
+    /// CLAUDECODE: Claude Code sets this to detect nested sessions; if propagated,
+    /// it prevents launching new Claude Code instances in tmux sessions.
+    private static let filteredKeys: Set<String> = ["CLAUDECODE"]
+
     private struct Cache {
         var environment: [String]?
         var dict: [String: String]?
@@ -51,7 +56,11 @@ enum EnvironmentBuilder {
 
             let result = output
                 .components(separatedBy: "\n")
-                .filter { $0.contains("=") && !$0.isEmpty }
+                .filter { line in
+                    guard !line.isEmpty, line.contains("=") else { return false }
+                    guard let key = line.split(separator: "=", maxSplits: 1).first else { return false }
+                    return !filteredKeys.contains(String(key))
+                }
             cache.environment = result
             return result
         }
@@ -116,7 +125,9 @@ enum EnvironmentBuilder {
         for entry in entries {
             let parts = entry.split(separator: "=", maxSplits: 1)
             if parts.count == 2 {
-                dict[String(parts[0])] = String(parts[1])
+                let key = String(parts[0])
+                guard !filteredKeys.contains(key) else { continue }
+                dict[key] = String(parts[1])
             }
         }
         return dict
