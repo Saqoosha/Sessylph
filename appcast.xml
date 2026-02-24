@@ -1,9 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
-  <channel>
-    <title>Sessylph Changelog</title>
-    <link>https://github.com/Saqoosha/Sessylph</link>
-    <description>Most recent changes with links to updates.</description>
-    <language>en</language>
-  </channel>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+    <channel>
+        <title>Sessylph Changelog</title>
+        <link>https://github.com/Saqoosha/Sessylph</link>
+        <description>Most recent changes with links to updates.</description>
+        <language>en</language>
+        <item>
+            <title>1.9.0</title>
+            <pubDate>Tue, 24 Feb 2026 22:18:46 +0900</pubDate>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>1.9.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.0/Sessylph-1.9.0.dmg" length="9661672" type="application/octet-stream" sparkle:edSignature="0co0NIiv4OsGL/Jl88PbNqlA4sn/5Q686wMltTYJArpNnsxD2OTRom8ozA8m0VNTGG42lLziuBOW/xzllem+Ag=="/>
+        </item>
+    </channel>
 </rss>
