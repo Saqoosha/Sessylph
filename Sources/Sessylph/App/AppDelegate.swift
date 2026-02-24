@@ -1,5 +1,6 @@
 import AppKit
 import os.log
+import Sparkle
 import UserNotifications
 
 private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "AppDelegate")
@@ -9,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - App Lifecycle
 
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
     nonisolated(unsafe) private var tabSwitchMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -111,6 +117,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Sessylph", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = updaterController
+        appMenu.addItem(checkForUpdatesItem)
         appMenu.addItem(withTitle: "Settings...", action: #selector(showSettings(_:)), keyEquivalent: ",")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Sessylph", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")

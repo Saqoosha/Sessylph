@@ -6,10 +6,15 @@ options:
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.9.0
+
 settings:
   base:
-    MARKETING_VERSION: "1.8.1"
-    CURRENT_PROJECT_VERSION: "20"
+    MARKETING_VERSION: "1.9.0"
+    CURRENT_PROJECT_VERSION: "21"
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
 
@@ -28,6 +33,8 @@ targets:
         type: folder
         buildPhase: none
     dependencies:
+      - package: Sparkle
+        product: Sparkle
       - target: SessylphNotifier
     postCompileScripts:
       - script: |
@@ -70,6 +77,8 @@ targets:
         CFBundleExecutable: Sessylph
         LSMinimumSystemVersion: "15.0"
         NSHumanReadableCopyright: "Copyright © 2026 Saqoosha. All rights reserved."
+        SUFeedURL: "https://saqoosha.github.io/Sessylph/appcast.xml"
+        SUPublicEDKey: "CfVhssjAg+ilpn08nLc2CvEID3s0PorWOS4lwUBfGto="
 
   SessylphNotifier:
     type: tool

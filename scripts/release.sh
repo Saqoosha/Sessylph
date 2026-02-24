@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
+SPARKLE_BIN="${BUILD_DIR}/SourcePackages/artifacts/sparkle/Sparkle/bin"
 
 usage() {
   echo "Usage: $0 <version>"
@@ -71,6 +72,9 @@ gh release create "$TAG" "$DMG_PATH" \
 - (Add release notes here)
 EOF
 )"
+
+echo "=== Updating Sparkle appcast ==="
+"${ROOT_DIR}/scripts/update_appcast.sh" "$VERSION"
 
 echo "=== Release complete ==="
 echo "Version: ${VERSION}"
