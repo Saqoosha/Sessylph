@@ -4,6 +4,9 @@ set -euo pipefail
 # Update Sparkle appcast.xml and push to gh-pages branch.
 # Usage: ./scripts/update_appcast.sh <version>
 # Can also be run standalone after a release to regenerate the appcast.
+#
+# This script also generates delta updates from previous versions and
+# uploads them to the GitHub Release for faster incremental updates.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
@@ -17,7 +20,6 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 DMG_NAME="Sessylph-${VERSION}.dmg"
-DOWNLOAD_URL="https://github.com/Saqoosha/Sessylph/releases/download/v${VERSION}/${DMG_NAME}"
 
 if [[ ! -x "${SPARKLE_BIN}/generate_appcast" ]]; then
   echo "Error: generate_appcast not found. Build the project first to resolve SPM dependencies."
@@ -27,6 +29,9 @@ fi
 # Prepare appcast directory with the DMG
 mkdir -p "$APPCAST_DIR"
 
+# Clean old delta files to avoid stale artifacts
+rm -f "$APPCAST_DIR"/*.delta
+
 # Download DMG from GitHub Release if not available locally
 DMG_PATH="${BUILD_DIR}/${DMG_NAME}"
 if [[ ! -f "$DMG_PATH" ]]; then
@@ -34,6 +39,19 @@ if [[ ! -f "$DMG_PATH" ]]; then
   gh release download "v${VERSION}" --pattern "${DMG_NAME}" --dir "$BUILD_DIR"
 fi
 cp "$DMG_PATH" "$APPCAST_DIR/"
+
+# Download previous version DMGs for delta generation
+echo "Downloading previous DMGs for delta generation..."
+RELEASES=$(gh release list --limit 5 --json tagName --jq '.[].tagName')
+for TAG in $RELEASES; do
+  [[ "$TAG" == "v${VERSION}" ]] && continue
+  PREV_DMG_NAME="Sessylph-${TAG#v}.dmg"
+  if [[ ! -f "${APPCAST_DIR}/${PREV_DMG_NAME}" ]]; then
+    echo "  Downloading ${PREV_DMG_NAME} from ${TAG}..."
+    gh release download "$TAG" --pattern "${PREV_DMG_NAME}" --dir "$APPCAST_DIR" 2>/dev/null || \
+      echo "  Skipping ${TAG} (no DMG found)"
+  fi
+done
 
 # If an existing appcast.xml exists on gh-pages, fetch it so generate_appcast
 # can append to it (preserving older versions in the feed).
@@ -45,7 +63,8 @@ fi
 rm -f "$EXISTING_APPCAST"
 
 # Generate/update appcast.xml with Sparkle's tool
-# This signs the DMG with the EdDSA key from Keychain and creates/updates appcast.xml
+# This signs the DMG with the EdDSA key from Keychain, creates delta updates,
+# and creates/updates appcast.xml
 "${SPARKLE_BIN}/generate_appcast" \
   --download-url-prefix "https://github.com/Saqoosha/Sessylph/releases/download/v${VERSION}/" \
   "$APPCAST_DIR"
@@ -57,6 +76,18 @@ fi
 
 echo "Generated appcast.xml:"
 cat "${APPCAST_DIR}/appcast.xml"
+
+# Upload delta files to the GitHub Release
+DELTAS=("$APPCAST_DIR"/*.delta)
+if [[ -e "${DELTAS[0]}" ]]; then
+  echo "Uploading delta updates to GitHub Release v${VERSION}..."
+  for DELTA in "${DELTAS[@]}"; do
+    echo "  Uploading $(basename "$DELTA") ($(du -h "$DELTA" | cut -f1))"
+    gh release upload "v${VERSION}" "$DELTA" --clobber
+  done
+else
+  echo "No delta files generated"
+fi
 
 # Push appcast.xml to gh-pages branch
 WORKTREE_DIR=$(mktemp -d)
