@@ -24,24 +24,6 @@ enum ClaudeCLI {
         )
     }
 
-    /// Resolves the path to the `happy` executable (Happy CLI).
-    static func happyPath() throws -> String {
-        try resolve(
-            name: "happy",
-            knownPaths: [
-                "\(NSHomeDirectory())/Library/pnpm/happy",
-                "\(NSHomeDirectory())/.local/bin/happy",
-                "/usr/local/bin/happy",
-                "/opt/homebrew/bin/happy",
-            ]
-        )
-    }
-
-    /// Returns the Happy CLI version string, or nil if not available.
-    static func happyVersion() -> String? {
-        versionOutput(for: happyPath, firstLineOnly: true)
-    }
-
     /// Resolves the path to the `tmux` executable.
     static func tmuxPath() throws -> String {
         try resolve(

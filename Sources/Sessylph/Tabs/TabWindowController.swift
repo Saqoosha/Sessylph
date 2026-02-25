@@ -163,8 +163,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         do {
             // Resolve paths and generate hooks before the tmux call (sync, fast)
-            let useHappy = UserDefaults.standard.bool(forKey: Defaults.useHappyCLI)
-            let claudePath = useHappy ? try ClaudeCLI.happyPath() : try ClaudeCLI.claudePath()
+            let claudePath = try ClaudeCLI.claudePath()
 
             var hookSettingsPath: String? = nil
             if let notifierPath = HookSettingsGenerator.notifierPath() {
