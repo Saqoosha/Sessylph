@@ -15,6 +15,15 @@
             <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.2/Sessylph-1.9.2.dmg" length="9544170" type="application/octet-stream" sparkle:edSignature="HtFOdFJUFBUm+qPhXyK7plIIJLWe2zKB0VkRzXJUlwd1XZ71xUWyv3Qd8kNF65shiajlAs5ybgu3Xt8Q8X1DBw=="/>
         </item>
         <item>
+            <title>1.9.2</title>
+            <pubDate>Wed, 25 Feb 2026 10:50:17 +0900</pubDate>
+            <sparkle:version>23</sparkle:version>
+            <sparkle:shortVersionString>1.9.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.2/Sessylph-1.9.2.dmg" length="9544148" type="application/octet-stream" sparkle:edSignature="brh6/r/poX+/ipCqvb0PTb6/8NQ3hvCJpfBKDGzLz6Pym9sZhdMFjWIqZB1g4bYKjv3kpvzjzNPxFF/aqXAwBA=="/>
+        </item>
+        <item>
             <title>1.9.1</title>
             <pubDate>Tue, 24 Feb 2026 23:19:12 +0900</pubDate>
             <sparkle:version>22</sparkle:version>
@@ -25,15 +34,6 @@
             <sparkle:deltas>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.1/Sessylph22-21.delta" sparkle:deltaFrom="21" length="142018" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="p/4UzzkB8xXygL9A5WIHPZv9N94eNknzX16oFqKA99n8QFmzAzddsPwEBQZIwsx7jAyFs2XYd3jNUPpalKtZAw=="/>
             </sparkle:deltas>
-        </item>
-        <item>
-            <title>1.9.0</title>
-            <pubDate>Tue, 24 Feb 2026 22:18:46 +0900</pubDate>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>1.9.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.2/Sessylph-1.9.0.dmg" length="9661672" type="application/octet-stream" sparkle:edSignature="0co0NIiv4OsGL/Jl88PbNqlA4sn/5Q686wMltTYJArpNnsxD2OTRom8ozA8m0VNTGG42lLziuBOW/xzllem+Ag=="/>
         </item>
     </channel>
 </rss>
