@@ -12,7 +12,7 @@
             <sparkle:shortVersionString>1.9.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.2/Sessylph-1.9.2.dmg" length="9544170" type="application/octet-stream" sparkle:edSignature="HtFOdFJUFBUm+qPhXyK7plIIJLWe2zKB0VkRzXJUlwd1XZ71xUWyv3Qd8kNF65shiajlAs5ybgu3Xt8Q8X1DBw=="/>
+            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.9.2/Sessylph-1.9.2.dmg" length="9544113" type="application/octet-stream" sparkle:edSignature="m80wfnJF5K993zg0cQPYkqhlYkUkUzT+kzbaKZH+NK8GYwvv2P3RUkvZMeDuruaPfAm0j1i8BGAvCIkX9PCbDA=="/>
         </item>
         <item>
             <title>1.9.2</title>
