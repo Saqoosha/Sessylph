@@ -60,18 +60,28 @@ jj bookmark set main -r @
 jj new
 jj git push --bookmark main
 
-# Create and push git tag
+# Create and push git tag (force-update if re-releasing the same version)
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  echo "Tag $TAG already exists, updating to current commit"
+  git tag -d "$TAG"
+  git push origin ":refs/tags/$TAG" 2>/dev/null || true
+fi
 git tag "$TAG"
 git push origin "$TAG"
 
 echo "=== Creating GitHub Release ==="
-gh release create "$TAG" "$DMG_PATH" \
-  --title "Sessylph ${VERSION}" \
-  --notes "$(cat <<EOF
+if gh release view "$TAG" >/dev/null 2>&1; then
+  echo "Release $TAG already exists, uploading DMG"
+  gh release upload "$TAG" "$DMG_PATH" --clobber
+else
+  gh release create "$TAG" "$DMG_PATH" \
+    --title "Sessylph ${VERSION}" \
+    --notes "$(cat <<EOF
 ### Changes
 - (Add release notes here)
 EOF
 )"
+fi
 
 echo "=== Updating Sparkle appcast ==="
 "${ROOT_DIR}/scripts/update_appcast.sh" "$VERSION"
