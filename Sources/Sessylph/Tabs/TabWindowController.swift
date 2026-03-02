@@ -96,6 +96,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.titlebarSeparatorStyle = .none
         window.titlebarAppearsTransparent = true
 
+        window.isRestorable = false
         window.setContentSize(defaultSize)
         window.center()
 
