@@ -207,11 +207,6 @@ final class TabManager {
             SessionStore.shared.remove(id: controller.session.id)
             HookSettingsGenerator.cleanup(sessionId: controller.session.id.uuidString)
 
-            // Safety net: if all windows closed (e.g. reattach failure on launch),
-            // open a fresh launcher tab so the user isn't left with an invisible app.
-            if windowControllers.isEmpty {
-                newTab()
-            }
         }
         logger.info("Tab closed (\(self.windowControllers.count) remaining)")
     }
