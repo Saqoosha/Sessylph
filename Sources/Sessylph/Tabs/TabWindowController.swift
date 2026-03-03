@@ -292,8 +292,21 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let exitStr = exitCode.map { String($0) } ?? "nil"
         logger.info("Process terminated in session \(self.session.tmuxSessionName) (exit=\(exitStr))")
 
-        // Close the tab/window when the shell process exits
-        window?.close()
+        stateTracker.stopSpinner()
+        stateTracker.stopTitlePolling()
+        terminalVC?.teardown()
+        terminalVC = nil
+
+        // If this is the last tab, show launcher instead of closing to prevent
+        // the app from having no visible windows (e.g. when reattached tmux
+        // sessions fail to attach during launch).
+        if TabManager.shared.windowControllers.count <= 1 {
+            showLauncher()
+            window?.title = "New Tab"
+            window?.tab.attributedTitle = nil
+        } else {
+            window?.close()
+        }
     }
 
     // MARK: - NSWindowDelegate

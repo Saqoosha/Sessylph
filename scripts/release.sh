@@ -86,6 +86,10 @@ fi
 echo "=== Updating Sparkle appcast ==="
 "${ROOT_DIR}/scripts/update_appcast.sh" "$VERSION"
 
+echo "=== Cleaning up dev builds ==="
+find "${BUILD_DIR}" -name "Sessylph.app" -type d -exec rm -rf {} + 2>/dev/null || true
+echo "Removed all .app bundles from ${BUILD_DIR}"
+
 echo "=== Release complete ==="
 echo "Version: ${VERSION}"
 echo "Tag: ${TAG}"
