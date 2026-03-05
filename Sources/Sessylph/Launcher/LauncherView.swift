@@ -14,23 +14,29 @@ struct LauncherView: View {
     @State private var hoveredDirectory: URL?
     @State private var isLaunching = false
     @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
+    @State private var searchText = ""
+    @State private var ccSessions: [ClaudeSessionEntry] = []
+    @State private var hoveredSessionId: String?
 
     var onLaunch: ((URL, ClaudeCodeOptions) -> Void)?
+
+    /// Row height for list items (used to calculate fixed list height)
+    private static let rowHeight: CGFloat = 34
+    private static let listRowCount = 10
 
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
                 header
+                optionsSection
                 directoryCard
                 startButton
-                if !recentDirectories.isEmpty {
-                    recentSection
-                }
-                optionsSection
+                searchField
+                listsSection
             }
             .padding(.horizontal, 36)
             .padding(.vertical, 36)
-            .frame(maxWidth: 480)
+            .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 0)
         }
@@ -43,32 +49,10 @@ struct LauncherView: View {
         .onAppear {
             recentDirectories = RecentDirectories.load()
             cliOptions = ClaudeCLI.discoverCLIOptions()
-        }
-    }
-
-    // MARK: - Start Button
-
-    private var startButton: some View {
-        Button {
-            launch()
-        } label: {
-            Group {
-                if isLaunching {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Starting...")
-                    }
-                } else {
-                    Label("Start Claude", systemImage: "play.fill")
-                }
+            Task {
+                ccSessions = await ClaudeSessionHistory.shared.loadSessions()
             }
-            .frame(width: 140)
         }
-        .controlSize(.large)
-        .keyboardShortcut(.return, modifiers: [])
-        .disabled(selectedDirectory == nil || isLaunching)
-        .padding(.top, 4)
     }
 
     // MARK: - Header
@@ -86,6 +70,50 @@ struct LauncherView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 4)
+    }
+
+    // MARK: - Options
+
+    private var optionsSection: some View {
+        VStack(spacing: 12) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Model:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $model) {
+                        Text("Auto").tag("")
+                        ForEach(cliOptions.modelAliases, id: \.self) { alias in
+                            Text(alias.prefix(1).uppercased() + alias.dropFirst()).tag(alias)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+
+                GridRow {
+                    Text("Permission:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $permissionMode) {
+                        ForEach(cliOptions.permissionModes, id: \.self) { mode in
+                            Text(PermissionMode.label(for: mode)).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(skipPermissions)
+                }
+            }
+
+            HStack(spacing: 16) {
+                Toggle("Skip permissions", isOn: $skipPermissions)
+                Toggle("Continue session", isOn: $continueSession)
+                Toggle("Verbose", isOn: $verbose)
+            }
+            .toggleStyle(.checkbox)
+            .frame(maxWidth: .infinity)
+        }
     }
 
     // MARK: - Directory Card
@@ -122,25 +150,126 @@ struct LauncherView: View {
         }
     }
 
-    // MARK: - Recent Directories
+    // MARK: - Start Button
 
-    private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Recents")
-                .font(.headline)
-
-            VStack(spacing: 0) {
-                ForEach(Array(recentDirectories.prefix(RecentDirectories.maxCount).enumerated()), id: \.element.path) { index, dir in
-                    recentRow(dir)
-                    if index < min(recentDirectories.count, RecentDirectories.maxCount) - 1 {
-                        Divider().padding(.leading, 34)
+    private var startButton: some View {
+        Button {
+            launch()
+        } label: {
+            Group {
+                if isLaunching {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Starting...")
                     }
+                } else {
+                    Label("Start Claude", systemImage: "play.fill")
                 }
             }
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(width: 140)
+        }
+        .controlSize(.large)
+        .keyboardShortcut(.return, modifiers: [])
+        .disabled(selectedDirectory == nil || isLaunching)
+        .padding(.top, 4)
+    }
+
+    // MARK: - Search
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.tertiary)
+                .font(.callout)
+            TextField("Filter...", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.callout)
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                        .font(.callout)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Lists (side by side)
+
+    private var filteredDirectories: [URL] {
+        guard !searchText.isEmpty else { return recentDirectories }
+        let query = searchText.lowercased()
+        return recentDirectories.filter { dir in
+            dir.lastPathComponent.lowercased().contains(query)
+                || dir.path.lowercased().contains(query)
         }
     }
+
+    private var filteredSessions: [ClaudeSessionEntry] {
+        guard !searchText.isEmpty else { return ccSessions }
+        let query = searchText.lowercased()
+        return ccSessions.filter { session in
+            session.title.lowercased().contains(query)
+                || session.projectName.lowercased().contains(query)
+                || session.projectPath.lowercased().contains(query)
+        }
+    }
+
+    private var listsSection: some View {
+        HStack(alignment: .top, spacing: 20) {
+            // Recent directories (left)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Recents")
+                    .font(.headline)
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(filteredDirectories.enumerated()), id: \.element.path) { index, dir in
+                            recentRow(dir)
+                            if index < filteredDirectories.count - 1 {
+                                Divider().padding(.leading, 34)
+                            }
+                        }
+                    }
+                }
+                .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .frame(maxWidth: .infinity)
+
+            // Sessions (right)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Sessions")
+                    .font(.headline)
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(filteredSessions.enumerated()), id: \.element.id) { index, session in
+                            sessionRow(session)
+                            if index < filteredSessions.count - 1 {
+                                Divider().padding(.leading, 34)
+                            }
+                        }
+                    }
+                }
+                .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - Recent Row
 
     private func recentRow(_ dir: URL) -> some View {
         let isSelected = selectedDirectory == dir
@@ -190,50 +319,52 @@ struct LauncherView: View {
         }
     }
 
-    // MARK: - Options Section
+    // MARK: - Session Row
 
-    private var optionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Options")
-                .font(.headline)
+    private static let sessionDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.doesRelativeDateFormatting = true
+        f.dateStyle = .short
+        f.timeStyle = .short
+        return f
+    }()
 
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-                GridRow {
-                    Text("Model:")
-                        .foregroundStyle(.secondary)
-                        .gridColumnAlignment(.trailing)
-                    Picker("", selection: $model) {
-                        Text("Auto").tag("")
-                        ForEach(cliOptions.modelAliases, id: \.self) { alias in
-                            Text(alias.prefix(1).uppercased() + alias.dropFirst()).tag(alias)
-                        }
+    private func sessionRow(_ session: ClaudeSessionEntry) -> some View {
+        let isHovered = hoveredSessionId == session.id
+        return Button {
+            launchSession(session)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "text.bubble")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.title)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(session.projectName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("\u{00B7}")
+                            .font(.caption2)
+                            .foregroundStyle(.quaternary)
+                        Text(Self.sessionDateFormatter.string(from: session.timestamp))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                GridRow {
-                    Text("Permission:")
-                        .foregroundStyle(.secondary)
-                        .gridColumnAlignment(.trailing)
-                    Picker("", selection: $permissionMode) {
-                        ForEach(cliOptions.permissionModes, id: \.self) { mode in
-                            Text(PermissionMode.label(for: mode)).tag(mode)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .disabled(skipPermissions)
-                }
+                Spacer(minLength: 0)
             }
-
-            HStack(spacing: 16) {
-                Toggle("Skip permissions", isOn: $skipPermissions)
-                Toggle("Continue session", isOn: $continueSession)
-                Toggle("Verbose", isOn: $verbose)
-            }
-            .toggleStyle(.checkbox)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered in
+            hoveredSessionId = hovered ? session.id : nil
         }
     }
 
@@ -248,6 +379,21 @@ struct LauncherView: View {
         opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
         opts.dangerouslySkipPermissions = skipPermissions
         opts.continueSession = continueSession
+        opts.verbose = verbose
+        onLaunch?(dir, opts)
+    }
+
+    private func launchSession(_ session: ClaudeSessionEntry) {
+        guard !isLaunching else { return }
+        let dir = URL(fileURLWithPath: session.projectPath)
+        selectedDirectory = dir
+        isLaunching = true
+        RecentDirectories.add(dir)
+        var opts = ClaudeCodeOptions()
+        opts.model = model.isEmpty ? nil : model
+        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+        opts.dangerouslySkipPermissions = skipPermissions
+        opts.resumeSessionId = session.id
         opts.verbose = verbose
         onLaunch?(dir, opts)
     }
@@ -276,4 +422,3 @@ struct LauncherView: View {
         }
     }
 }
-

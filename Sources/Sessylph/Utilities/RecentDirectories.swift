@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Recent Directories
 
 enum RecentDirectories {
-    static let maxCount = 10
+    static let maxCount = 50
 
     static func load() -> [URL] {
         guard let paths = UserDefaults.standard.stringArray(forKey: Defaults.recentDirectories) else {
