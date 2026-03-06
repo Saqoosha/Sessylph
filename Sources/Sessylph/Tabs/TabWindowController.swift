@@ -113,10 +113,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let savedFrame = window.frame
 
         var launcherView = LauncherView()
-        launcherView.onLaunch = { [weak self] directory, options in
+        launcherView.onLaunch = { [weak self] directory, launchConfig in
             guard let self else { return }
             Task {
-                await self.launchClaude(directory: directory, options: options)
+                await self.launchSession(directory: directory, config: launchConfig)
             }
         }
         let hostingController = NSHostingController(
@@ -154,33 +154,52 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.setFrame(savedFrame, display: false)
     }
 
-    // MARK: - Launch Claude
+    // MARK: - Launch Session
 
-    func launchClaude(directory: URL, options: ClaudeCodeOptions) async {
-        session = Session(directory: directory, options: options)
+    func launchSession(directory: URL, config: LaunchConfig) async {
+        switch config {
+        case .claudeCode(let options):
+            session = Session(directory: directory, options: options)
+        case .codex(let options):
+            session = Session(directory: directory, codexOptions: options)
+        }
 
         // Update tab title immediately so the user sees feedback before tmux finishes
         applyTitles(icon: "⏳")
 
         do {
-            // Resolve paths and generate hooks before the tmux call (sync, fast)
-            let claudePath = try ClaudeCLI.claudePath()
-
-            var hookSettingsPath: String? = nil
-            if let notifierPath = HookSettingsGenerator.notifierPath() {
-                let hooksURL = try HookSettingsGenerator.generate(
-                    sessionId: session.id.uuidString,
-                    notifierPath: notifierPath
+            let command: String
+            switch config {
+            case .claudeCode(let options):
+                let claudePath = try ClaudeCLI.claudePath()
+                var hookSettingsPath: String? = nil
+                if let notifierPath = HookSettingsGenerator.notifierPath() {
+                    let hooksURL = try HookSettingsGenerator.generate(
+                        sessionId: session.id.uuidString,
+                        notifierPath: notifierPath
+                    )
+                    hookSettingsPath = hooksURL.path
+                } else {
+                    logger.warning("sessylph-notifier not found in bundle — notifications will be disabled")
+                }
+                command = options.buildCommand(
+                    claudePath: claudePath,
+                    hookSettingsPath: hookSettingsPath
                 )
-                hookSettingsPath = hooksURL.path
-            } else {
-                logger.warning("sessylph-notifier not found in bundle — notifications will be disabled")
-            }
 
-            let command = session.options.buildCommand(
-                claudePath: claudePath,
-                hookSettingsPath: hookSettingsPath
-            )
+            case .codex(let options):
+                let codexPath = try CodexCLI.codexPath()
+                var notifierArgs: [String]? = nil
+                if let notifierPath = HookSettingsGenerator.notifierPath() {
+                    notifierArgs = [notifierPath, session.id.uuidString, "stop"]
+                } else {
+                    logger.warning("sessylph-notifier not found in bundle — notifications will be disabled")
+                }
+                command = options.buildCommand(
+                    codexPath: codexPath,
+                    notifierArgs: notifierArgs
+                )
+            }
 
             // Single tmux invocation: create session + configure + launch
             try await TmuxManager.shared.createAndLaunchSession(
@@ -199,7 +218,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 logger.warning("Failed to clean up tmux session: \(error.localizedDescription)")
             }
 
-            logger.error("Failed to launch Claude: \(error.localizedDescription)")
+            logger.error("Failed to launch session: \(error.localizedDescription)")
 
             // Reset launcher UI before showing the error alert
             showLauncher()
@@ -225,7 +244,12 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         // before the session was running, so it skipped focusTerminal().
         terminalVC?.focusTerminal()
 
-        logger.info("Launched Claude in \(directory.path)")
+        logger.info("Launched \(self.session.cliType.displayName) in \(directory.path)")
+    }
+
+    /// Convenience for launching with Claude Code options (used by TabManager).
+    func launchClaude(directory: URL, options: ClaudeCodeOptions) async {
+        await launchSession(directory: directory, config: .claudeCode(options))
     }
 
     // MARK: - TerminalViewControllerDelegate
@@ -323,7 +347,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             guard let self else { return }
             let alert = NSAlert()
             alert.messageText = "Close Tab?"
-            alert.informativeText = "The Claude Code session in \"\(self.session.title)\" will be terminated."
+            alert.informativeText = "The \(self.session.cliType.displayName) session in \"\(self.session.title)\" will be terminated."
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Close Tab")
             alert.addButton(withTitle: "Cancel")

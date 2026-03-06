@@ -2,10 +2,16 @@ import Foundation
 
 enum Defaults {
     // MARK: - General
+    static let defaultCLIType = "defaultCLIType"
     static let defaultModel = "defaultModel"
     static let defaultPermissionMode = "defaultPermissionMode"
     static let claudePathOverride = "claudePathOverride"
     static let tmuxPathOverride = "tmuxPathOverride"
+
+    // MARK: - Codex
+    static let codexModel = "codexModel"
+    static let codexApprovalMode = "codexApprovalMode"
+    static let codexFullAuto = "codexFullAuto"
 
     // MARK: - Appearance
     static let terminalFontName = "terminalFontName"

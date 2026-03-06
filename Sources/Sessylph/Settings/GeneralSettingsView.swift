@@ -68,6 +68,12 @@ struct GeneralSettingsView: View {
                     LabeledContent("Claude Code", value: "Not found")
                         .foregroundStyle(.red)
                 }
+                if let version = CodexCLI.codexVersion() {
+                    LabeledContent("Codex CLI", value: version)
+                } else {
+                    LabeledContent("Codex CLI", value: "Not found")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

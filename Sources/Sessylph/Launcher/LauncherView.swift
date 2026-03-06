@@ -1,24 +1,34 @@
 import SwiftUI
 
 struct LauncherView: View {
-    // Shared with General Settings
+    // CLI type selection
+    @AppStorage(Defaults.defaultCLIType) private var cliTypeRaw = CLIType.claudeCode.rawValue
+    // Claude Code options
     @AppStorage(Defaults.defaultModel) private var model = ""
     @AppStorage(Defaults.defaultPermissionMode) private var permissionMode = ""
-    // Launcher-only options
     @AppStorage(Defaults.launcherSkipPermissions) private var skipPermissions = false
     @AppStorage(Defaults.launcherContinueSession) private var continueSession = false
     @AppStorage(Defaults.launcherVerbose) private var verbose = false
+    // Codex options
+    @AppStorage(Defaults.codexModel) private var codexModel = ""
+    @AppStorage(Defaults.codexApprovalMode) private var codexApprovalMode = "on-request"
+    @AppStorage(Defaults.codexFullAuto) private var codexFullAuto = false
 
     @State private var selectedDirectory: URL?
     @State private var recentDirectories: [URL] = []
     @State private var hoveredDirectory: URL?
     @State private var isLaunching = false
     @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
+    @State private var codexCLIOptions = CodexCLI.CLIOptions(approvalModes: [])
     @State private var searchText = ""
     @State private var ccSessions: [ClaudeSessionEntry] = []
     @State private var hoveredSessionId: String?
 
-    var onLaunch: ((URL, ClaudeCodeOptions) -> Void)?
+    private var cliType: CLIType {
+        CLIType(rawValue: cliTypeRaw) ?? .claudeCode
+    }
+
+    var onLaunch: ((URL, LaunchConfig) -> Void)?
 
     /// Row height for list items (used to calculate fixed list height)
     private static let rowHeight: CGFloat = 34
@@ -49,6 +59,7 @@ struct LauncherView: View {
         .onAppear {
             recentDirectories = RecentDirectories.load()
             cliOptions = ClaudeCLI.discoverCLIOptions()
+            codexCLIOptions = CodexCLI.discoverCLIOptions()
             Task {
                 ccSessions = await ClaudeSessionHistory.shared.loadSessions()
             }
@@ -64,7 +75,7 @@ struct LauncherView: View {
                 .frame(width: 64, height: 64)
             Text("Sessylph")
                 .font(.title.bold())
-            Text("Start a new Claude Code session")
+            Text("Start a new \(cliType.displayName) session")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -75,6 +86,25 @@ struct LauncherView: View {
     // MARK: - Options
 
     private var optionsSection: some View {
+        VStack(spacing: 12) {
+            // CLI type picker
+            Picker("", selection: $cliTypeRaw) {
+                ForEach(CLIType.allCases, id: \.rawValue) { type in
+                    Text(type.displayName).tag(type.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+
+            if cliType == .claudeCode {
+                claudeCodeOptions
+            } else {
+                codexOptionsView
+            }
+        }
+    }
+
+    private var claudeCodeOptions: some View {
         VStack(spacing: 12) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
                 GridRow {
@@ -113,6 +143,38 @@ struct LauncherView: View {
             }
             .toggleStyle(.checkbox)
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var codexOptionsView: some View {
+        VStack(spacing: 12) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Model:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    ComboBox(items: CodexCLI.knownModels, text: $codexModel, placeholder: "Default")
+                        .frame(width: 180, height: 24)
+                }
+
+                GridRow {
+                    Text("Approval:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $codexApprovalMode) {
+                        ForEach(codexCLIOptions.approvalModes, id: \.self) { mode in
+                            Text(mode).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(codexFullAuto)
+                }
+            }
+
+            Toggle("Full auto", isOn: $codexFullAuto)
+                .toggleStyle(.checkbox)
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -164,7 +226,7 @@ struct LauncherView: View {
                         Text("Starting...")
                     }
                 } else {
-                    Label("Start Claude", systemImage: "play.fill")
+                    Label("Start \(cliType.displayName)", systemImage: "play.fill")
                 }
             }
             .frame(width: 140)
@@ -374,13 +436,30 @@ struct LauncherView: View {
         guard let dir = selectedDirectory, !isLaunching else { return }
         isLaunching = true
         RecentDirectories.add(dir)
-        var opts = ClaudeCodeOptions()
-        opts.model = model.isEmpty ? nil : model
-        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
-        opts.dangerouslySkipPermissions = skipPermissions
-        opts.continueSession = continueSession
-        opts.verbose = verbose
-        onLaunch?(dir, opts)
+
+        let config: LaunchConfig
+        switch cliType {
+        case .claudeCode:
+            var opts = ClaudeCodeOptions()
+            opts.model = model.isEmpty ? nil : model
+            opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+            opts.dangerouslySkipPermissions = skipPermissions
+            opts.continueSession = continueSession
+            opts.verbose = verbose
+            config = .claudeCode(opts)
+        case .codex:
+            var opts = CodexOptions()
+            opts.model = codexModel.isEmpty ? nil : codexModel
+            opts.fullAuto = codexFullAuto
+            if !codexFullAuto {
+                // Only pass approval mode if it's a valid value
+                let validModes = Set(codexCLIOptions.approvalModes)
+                opts.approvalMode = validModes.contains(codexApprovalMode) ? codexApprovalMode : nil
+            }
+            config = .codex(opts)
+        }
+
+        onLaunch?(dir, config)
     }
 
     private func launchSession(_ session: ClaudeSessionEntry) {
@@ -395,7 +474,7 @@ struct LauncherView: View {
         opts.dangerouslySkipPermissions = skipPermissions
         opts.resumeSessionId = session.id
         opts.verbose = verbose
-        onLaunch?(dir, opts)
+        onLaunch?(dir, .claudeCode(opts))
     }
 
     private func removeRecent(_ dir: URL) {
@@ -415,7 +494,7 @@ struct LauncherView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
         panel.prompt = "Select"
-        panel.message = "Choose a working directory for Claude Code"
+        panel.message = "Choose a working directory"
 
         if panel.runModal() == .OK, let url = panel.url {
             selectedDirectory = url
