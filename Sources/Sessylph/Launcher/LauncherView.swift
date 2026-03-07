@@ -640,7 +640,7 @@ struct LauncherView: View {
                     .labelsHidden()
 
                     Button("Manage Hosts...") {
-                        SettingsWindow.shared.show()
+                        SettingsWindow.shared.show(tab: .remoteHosts)
                     }
                     .controlSize(.small)
                 }

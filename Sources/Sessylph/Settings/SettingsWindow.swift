@@ -63,7 +63,12 @@ final class SettingsWindow: NSObject, NSToolbarDelegate {
         }
     }
 
-    func show() {
+    func show(tab: Tab? = nil) {
+        if let tab {
+            tabSelection.current = tab
+            windowController.window?.title = tab.rawValue
+            windowController.window?.toolbar?.selectedItemIdentifier = tab.toolbarItemIdentifier
+        }
         windowController.showWindow(nil)
         windowController.window?.makeKeyAndOrderFront(nil)
     }
