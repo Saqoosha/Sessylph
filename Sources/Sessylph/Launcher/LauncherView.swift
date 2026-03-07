@@ -64,6 +64,22 @@ struct LauncherView: View {
     @State private var codexSessions: [CodexSessionEntry] = []
     @State private var hoveredSessionId: String?
 
+    // Remote session support
+    @State private var connectionMode: ConnectionMode = .local
+    @State private var selectedRemoteHostId: UUID?
+    @State private var remoteSessions: [(name: String, windows: Int, created: String)] = []
+    @State private var isLoadingRemoteSessions = false
+    @State private var remoteDirectory = "~"
+    @State private var remoteConnectionError: String?
+    @State private var showRemoteBrowser = false
+
+    @ObservedObject private var remoteHostStore = RemoteHostStore.shared
+
+    enum ConnectionMode: String, CaseIterable {
+        case local = "Local"
+        case remote = "Remote"
+    }
+
     private var cliType: CLIType {
         CLIType(rawValue: cliTypeRaw) ?? .claudeCode
     }
@@ -101,11 +117,16 @@ struct LauncherView: View {
         ScrollView {
             VStack(spacing: 28) {
                 header
-                optionsSection
-                directoryCard
-                startButton
-                searchField
-                listsSection
+                connectionModeSelector
+                if connectionMode == .local {
+                    optionsSection
+                    directoryCard
+                    startButton
+                    searchField
+                    listsSection
+                } else {
+                    remoteSection
+                }
             }
             .padding(.horizontal, 36)
             .padding(.vertical, 36)
@@ -119,6 +140,11 @@ struct LauncherView: View {
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .disabled(isLaunching)
         .defaultScrollAnchor(.center)
+        .onChange(of: selectedRemoteHostId) { _, _ in
+            remoteSessions = []
+            remoteConnectionError = nil
+            loadRemoteSessions()
+        }
         .onAppear {
             recentDirectories = RecentDirectories.load()
             cliOptions = ClaudeCLI.discoverCLIOptions()
@@ -141,12 +167,24 @@ struct LauncherView: View {
                 .frame(width: 64, height: 64)
             Text("Sessylph")
                 .font(.title.bold())
-            Text("Start a new \(cliType.displayName) session")
+            Text("Start a new \(connectionMode == .local ? cliType.displayName : "remote") session")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 4)
+    }
+
+    // MARK: - Connection Mode
+
+    private var connectionModeSelector: some View {
+        Picker("", selection: $connectionMode) {
+            ForEach(ConnectionMode.allCases, id: \.rawValue) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .fixedSize()
     }
 
     // MARK: - Options
@@ -578,6 +616,206 @@ struct LauncherView: View {
         .onHover { hovered in
             hoveredSessionId = hovered ? session.id : nil
         }
+    }
+
+    // MARK: - Remote Section
+
+    private var remoteSection: some View {
+        VStack(spacing: 20) {
+            // Host picker
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Remote Host")
+                    .font(.headline)
+
+                HStack(spacing: 10) {
+                    Picker("", selection: $selectedRemoteHostId) {
+                        Text("Select a host...").tag(nil as UUID?)
+                        ForEach(remoteHostStore.hosts) { host in
+                            Text(host.displayName).tag(host.id as UUID?)
+                        }
+                    }
+                    .labelsHidden()
+
+                    Button("Manage Hosts...") {
+                        SettingsWindow.shared.show()
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            if selectedRemoteHostId != nil {
+                // Remote directory input
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Working Directory")
+                        .font(.headline)
+                    HStack(spacing: 10) {
+                        Image(systemName: "folder.fill")
+                            .font(.title3)
+                            .foregroundStyle(remoteDirectory.isEmpty ? .secondary : Color.accentColor)
+                        TextField("Remote path (e.g. ~/projects/myapp)", text: $remoteDirectory)
+                            .textFieldStyle(.plain)
+                            .onSubmit { }
+                        Button("Browse...") {
+                            showRemoteBrowser = true
+                        }
+                    }
+                    .padding(12)
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .sheet(isPresented: $showRemoteBrowser) {
+                    if let hostId = selectedRemoteHostId,
+                       let host = remoteHostStore.hosts.first(where: { $0.id == hostId }) {
+                        RemoteDirectoryBrowser(remoteHost: host) { path in
+                            remoteDirectory = path
+                        }
+                    }
+                }
+
+                // Claude options for new session
+                claudeCodeOptions
+
+                // Start new remote session button
+                Button {
+                    launchRemoteNewSession()
+                } label: {
+                    Label("Start Remote Session", systemImage: "play.fill")
+                        .frame(width: 200)
+                }
+                .controlSize(.large)
+                .keyboardShortcut(.return, modifiers: [])
+                .disabled(selectedRemoteHostId == nil || remoteDirectory.isEmpty || isLaunching)
+
+                Divider()
+
+                // Remote sessions list
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Remote tmux Sessions")
+                            .font(.headline)
+                        Spacer()
+                        if isLoadingRemoteSessions {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Button {
+                                loadRemoteSessions()
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if let error = remoteConnectionError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            if remoteSessions.isEmpty && !isLoadingRemoteSessions {
+                                Text("No active tmux sessions")
+                                    .foregroundStyle(.tertiary)
+                                    .padding()
+                            }
+                            ForEach(Array(remoteSessions.enumerated()), id: \.element.name) { index, session in
+                                remoteSessionRow(session)
+                                if index < remoteSessions.count - 1 {
+                                    Divider().padding(.leading, 34)
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: Self.rowHeight * CGFloat(min(Self.listRowCount, max(3, remoteSessions.count))))
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    private func remoteSessionRow(_ session: (name: String, windows: Int, created: String)) -> some View {
+        Button {
+            attachToRemoteSession(session.name)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "terminal")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.name)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text("\(session.windows) window\(session.windows == 1 ? "" : "s")")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        if !session.created.isEmpty {
+                            Text("\u{00B7}")
+                                .font(.caption2)
+                                .foregroundStyle(.quaternary)
+                            Text(session.created)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.right.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Remote Actions
+
+    private func loadRemoteSessions() {
+        guard let hostId = selectedRemoteHostId,
+              let host = remoteHostStore.hosts.first(where: { $0.id == hostId }) else { return }
+        isLoadingRemoteSessions = true
+        remoteConnectionError = nil
+        Task {
+            let sessions = await TmuxManager.shared.listAllSessions(remoteHost: host)
+            remoteSessions = sessions
+            isLoadingRemoteSessions = false
+            if sessions.isEmpty {
+                // Check if SSH connection even works
+                let connected = await TmuxManager.shared.testSSHConnection(remoteHost: host)
+                if !connected {
+                    remoteConnectionError = "Failed to connect to \(host.host)"
+                }
+            }
+        }
+    }
+
+    private func attachToRemoteSession(_ sessionName: String) {
+        guard let hostId = selectedRemoteHostId,
+              let host = remoteHostStore.hosts.first(where: { $0.id == hostId }),
+              !isLaunching else { return }
+        isLaunching = true
+        onLaunch?(URL(fileURLWithPath: "/"), .remoteAttach(host, sessionName: sessionName))
+    }
+
+    private func launchRemoteNewSession() {
+        guard let hostId = selectedRemoteHostId,
+              let host = remoteHostStore.hosts.first(where: { $0.id == hostId }),
+              !isLaunching else { return }
+        isLaunching = true
+
+        var opts = ClaudeCodeOptions()
+        opts.model = model.isEmpty ? nil : model
+        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+        opts.dangerouslySkipPermissions = skipPermissions
+        opts.verbose = verbose
+
+        onLaunch?(URL(fileURLWithPath: remoteDirectory), .remoteNewSession(host, directory: remoteDirectory, opts))
     }
 
     // MARK: - Actions

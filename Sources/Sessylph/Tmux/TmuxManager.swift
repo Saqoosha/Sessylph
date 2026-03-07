@@ -90,14 +90,31 @@ final class TmuxManager: Sendable {
     /// Used when reattaching to orphaned sessions that are already running.
     /// All commands are batched into a single tmux invocation.
     /// Best-effort: failures are logged but don't block reattach.
-    func configureSession(name: String) async {
-        let t = "=\(name)"
-        _ = try? await runTmux(args: [
-            "set-option", "-t", t, "set-titles", "on",
-            ";", "set-option", "-t", t, "set-titles-string", "#{pane_title}",
-            ";", "set-option", "-t", t, "allow-passthrough", "on",
-            ";", "set-option", "-t", t, "mouse", "off",
-        ] + Self.serverOptions)
+    func configureSession(name: String, remoteHost: RemoteHost? = nil) async {
+        if remoteHost != nil {
+            // Remote: run each set-option separately to avoid shell escaping issues
+            let t = "=\(name)"
+            let commands: [[String]] = [
+                ["set-option", "-t", t, "set-titles", "on"],
+                ["set-option", "-t", t, "set-titles-string", "#{pane_title}"],
+                ["set-option", "-t", t, "allow-passthrough", "on"],
+                ["set-option", "-t", t, "mouse", "off"],
+                ["set-option", "-s", "extended-keys", "on"],
+                ["set-option", "-g", "window-size", "latest"],
+                ["set-option", "-g", "mouse", "off"],
+            ]
+            for cmd in commands {
+                _ = try? await runTmux(args: cmd, remoteHost: remoteHost)
+            }
+        } else {
+            let t = "=\(name)"
+            _ = try? await runTmux(args: [
+                "set-option", "-t", t, "set-titles", "on",
+                ";", "set-option", "-t", t, "set-titles-string", "#{pane_title}",
+                ";", "set-option", "-t", t, "allow-passthrough", "on",
+                ";", "set-option", "-t", t, "mouse", "off",
+            ] + Self.serverOptions)
+        }
     }
 
     /// Creates a tmux session, configures it for title passthrough, and launches
@@ -108,42 +125,54 @@ final class TmuxManager: Sendable {
     func createAndLaunchSession(
         name: String,
         directory: URL,
-        command: String
+        command: String,
+        remoteHost: RemoteHost? = nil
     ) async throws {
-        // NOTE: Do NOT use "=" prefix for -t targets within the same batch as
-        // new-session. tmux's batch parser cannot resolve "=name" for a session
-        // that was just created in the same invocation.
-        do {
+        if remoteHost != nil {
+            // Remote: avoid tmux batch commands (semicolons get mangled by SSH shell).
+            // Use separate SSH invocations instead.
             _ = try await runTmux(args: [
                 "new-session", "-d", "-s", name, "-c", directory.path,
-                // Title passthrough (best-effort)
-                ";", "set-option", "-t", name, "set-titles", "on",
-                ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
-                // Escape sequence passthrough (tmux 3.3+, may fail on older versions)
-                ";", "set-option", "-t", name, "allow-passthrough", "on",
-                ";", "set-option", "-t", name, "mouse", "off",
-            ] + Self.serverOptions + [
-                // Launch Claude (must be last — earlier commands may fail best-effort)
-                ";", "send-keys", "-t", name, command, "Enter",
-            ])
-        } catch {
-            // Best-effort set-options (e.g. allow-passthrough on older tmux) may
-            // cause non-zero exit even though the session was created and Claude
-            // was launched successfully. Verify the session actually exists.
-            guard await sessionExists(name: name) else {
-                throw error
+            ], remoteHost: remoteHost)
+
+            // Configure session (best-effort)
+            await configureSession(name: name, remoteHost: remoteHost)
+
+            // Launch command
+            _ = try await runTmux(args: [
+                "send-keys", "-t", name, command, "Enter",
+            ], remoteHost: remoteHost)
+        } else {
+            // Local: use batched tmux commands for minimal latency.
+            // NOTE: Do NOT use "=" prefix for -t targets within the same batch as
+            // new-session. tmux's batch parser cannot resolve "=name" for a session
+            // that was just created in the same invocation.
+            do {
+                _ = try await runTmux(args: [
+                    "new-session", "-d", "-s", name, "-c", directory.path,
+                    ";", "set-option", "-t", name, "set-titles", "on",
+                    ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
+                    ";", "set-option", "-t", name, "allow-passthrough", "on",
+                    ";", "set-option", "-t", name, "mouse", "off",
+                ] + Self.serverOptions + [
+                    ";", "send-keys", "-t", name, command, "Enter",
+                ])
+            } catch {
+                guard await sessionExists(name: name) else {
+                    throw error
+                }
+                logger.info("Session \(name) created (some tmux options may not be supported)")
             }
-            logger.info("Session \(name) created (some tmux options may not be supported)")
         }
     }
 
     /// Renames a tmux session. Best-effort: returns false on failure.
-    func renameSession(from oldName: String, to newName: String) async -> Bool {
+    func renameSession(from oldName: String, to newName: String, remoteHost: RemoteHost? = nil) async -> Bool {
         guard oldName != newName else { return true }
         do {
             _ = try await runTmux(args: [
                 "rename-session", "-t", "=\(oldName)", newName,
-            ])
+            ], remoteHost: remoteHost)
             return true
         } catch {
             logger.debug("Failed to rename session \(oldName) → \(newName): \(error.localizedDescription)")
@@ -153,17 +182,17 @@ final class TmuxManager: Sendable {
 
     /// Kills a session.
     /// `tmux kill-session -t {name}`
-    func killSession(name: String) async throws {
+    func killSession(name: String, remoteHost: RemoteHost? = nil) async throws {
         _ = try await runTmux(args: [
             "kill-session", "-t", "=\(name)",
-        ])
+        ], remoteHost: remoteHost)
     }
 
     /// Checks if session exists.
     /// `tmux has-session -t {name}`
-    func sessionExists(name: String) async -> Bool {
+    func sessionExists(name: String, remoteHost: RemoteHost? = nil) async -> Bool {
         do {
-            _ = try await runTmux(args: ["has-session", "-t", "=\(name)"])
+            _ = try await runTmux(args: ["has-session", "-t", "=\(name)"], remoteHost: remoteHost)
             return true
         } catch {
             logger.debug("Session \(name) does not exist (or tmux error): \(error.localizedDescription)")
@@ -172,11 +201,11 @@ final class TmuxManager: Sendable {
     }
 
     /// Lists all sessylph-* sessions.
-    func listSessylphSessions() async -> [String] {
+    func listSessylphSessions(remoteHost: RemoteHost? = nil) async -> [String] {
         do {
             let output = try await runTmux(args: [
                 "list-sessions", "-F", "#{session_name}",
-            ])
+            ], remoteHost: remoteHost)
             return output
                 .components(separatedBy: "\n")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -187,12 +216,37 @@ final class TmuxManager: Sendable {
         }
     }
 
+    /// Lists ALL tmux sessions on the remote host (not just sessylph-prefixed).
+    /// Used for attaching to arbitrary remote tmux sessions.
+    func listAllSessions(remoteHost: RemoteHost) async -> [(name: String, windows: Int, created: String)] {
+        do {
+            let output = try await runTmux(args: [
+                "list-sessions", "-F", "#{session_name}\t#{session_windows}\t#{session_created_string}",
+            ], remoteHost: remoteHost)
+            return output
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .map { line in
+                    let parts = line.components(separatedBy: "\t")
+                    return (
+                        name: parts[0],
+                        windows: parts.count > 1 ? (Int(parts[1]) ?? 1) : 1,
+                        created: parts.count > 2 ? parts[2] : ""
+                    )
+                }
+        } catch {
+            logger.warning("Failed to list remote tmux sessions: \(error.localizedDescription)")
+            return []
+        }
+    }
+
     /// Returns the current pane title for the given session.
-    func getPaneTitle(sessionName: String) async -> String? {
+    func getPaneTitle(sessionName: String, remoteHost: RemoteHost? = nil) async -> String? {
         do {
             let output = try await runTmux(args: [
                 "display-message", "-t", "=\(sessionName)", "-p", "#{pane_title}",
-            ])
+            ], remoteHost: remoteHost)
             let title = output.trimmingCharacters(in: .whitespacesAndNewlines)
             return title.isEmpty ? nil : title
         } catch {
@@ -202,11 +256,11 @@ final class TmuxManager: Sendable {
     }
 
     /// Returns the tmux window dimensions (cols, rows) for the given session.
-    func getWindowSize(sessionName: String) async -> (cols: Int, rows: Int)? {
+    func getWindowSize(sessionName: String, remoteHost: RemoteHost? = nil) async -> (cols: Int, rows: Int)? {
         do {
             let output = try await runTmux(args: [
                 "display-message", "-t", "=\(sessionName)", "-p", "#{window_width},#{window_height}",
-            ])
+            ], remoteHost: remoteHost)
             let parts = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ",")
             guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return nil }
             return (w, h)
@@ -217,11 +271,11 @@ final class TmuxManager: Sendable {
     }
 
     /// Returns the current working directory of the active pane.
-    func getPaneCurrentPath(sessionName: String) async -> String? {
+    func getPaneCurrentPath(sessionName: String, remoteHost: RemoteHost? = nil) async -> String? {
         do {
             let output = try await runTmux(args: [
                 "display-message", "-t", "=\(sessionName)", "-p", "#{pane_current_path}",
-            ])
+            ], remoteHost: remoteHost)
             let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
             return path.isEmpty ? nil : path
         } catch {
@@ -234,12 +288,12 @@ final class TmuxManager: Sendable {
     /// Includes the visible viewport so that sessions with no scrollback history still
     /// get their viewport content preloaded into xterm.js scrollback buffer.
     /// Returns nil if capture fails or content is empty.
-    func captureHistory(sessionName: String, lines: Int = 1000) async -> String? {
+    func captureHistory(sessionName: String, lines: Int = 1000, remoteHost: RemoteHost? = nil) async -> String? {
         do {
             let output = try await runTmux(args: [
                 "capture-pane", "-t", "\(sessionName)", "-p", "-e", "-J",
                 "-S", "-\(lines)",
-            ])
+            ], remoteHost: remoteHost)
             // Strip trailing blank lines from viewport padding
             let trimmed = output.replacingOccurrences(
                 of: "\\n+$", with: "", options: .regularExpression
@@ -251,9 +305,44 @@ final class TmuxManager: Sendable {
         }
     }
 
+    // MARK: - SSH Connection Testing
+
+    /// Tests SSH connectivity to a remote host. Returns true if successful.
+    func testSSHConnection(remoteHost: RemoteHost) async -> Bool {
+        let sshPath = "/usr/bin/ssh"
+        var args = remoteHost.sshArgs
+        args.append("echo")
+        args.append("ok")
+
+        let finalArgs = args
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: sshPath)
+                process.arguments = finalArgs
+                process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = FileHandle.nullDevice
+
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: false)
+                    return
+                }
+                process.waitUntilExit()
+                continuation.resume(returning: process.terminationStatus == 0)
+            }
+        }
+    }
+
     // MARK: - Private
 
-    private func runTmux(args: [String]) async throws -> String {
+    private func runTmux(args: [String], remoteHost: RemoteHost? = nil) async throws -> String {
+        if let remoteHost {
+            return try await runRemoteTmux(remoteHost: remoteHost, args: args)
+        }
+
         let tmuxPath = try ClaudeCLI.tmuxPath()
         let environment = EnvironmentBuilder.loginEnvironmentDict()
 
@@ -280,6 +369,71 @@ final class TmuxManager: Sendable {
                 // Read pipe data BEFORE waitUntilExit to avoid deadlock:
                 // if the process fills the pipe buffer, it blocks waiting for
                 // a reader; reading in terminationHandler would never start.
+                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+                process.waitUntilExit()
+
+                if process.terminationStatus != 0 {
+                    let stderrString = String(data: stderrData, encoding: .utf8) ?? ""
+                    continuation.resume(
+                        throwing: TmuxError.nonZeroExit(
+                            process.terminationStatus,
+                            stderr: stderrString.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                    )
+                    return
+                }
+
+                guard let output = String(data: stdoutData, encoding: .utf8) else {
+                    continuation.resume(throwing: TmuxError.outputDecodingFailed)
+                    return
+                }
+
+                continuation.resume(
+                    returning: output.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            }
+        }
+    }
+
+    private func runRemoteTmux(remoteHost: RemoteHost, args: [String]) async throws -> String {
+        let sshPath = "/usr/bin/ssh"
+        // SSH concatenates remote command args with spaces and passes to remote shell.
+        // tmux batch separators (";") would be interpreted by the remote shell,
+        // so we must shell-quote each arg and join into a single command string.
+        let remoteCommand = (["tmux"] + args).map { arg in
+            // Don't quote simple args, but always quote ";" and args with spaces/special chars
+            if arg == ";" {
+                return "\\;"
+            }
+            if arg.rangeOfCharacter(from: .init(charactersIn: " \t'\"\\$`!#&|(){}[]<>?*~")) != nil {
+                return "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
+            }
+            return arg
+        }.joined(separator: " ")
+        let sshFullArgs = remoteHost.sshArgs + [remoteCommand]
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+            DispatchQueue.global().async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: sshPath)
+                process.arguments = sshFullArgs
+                process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                // Don't set environment for SSH — use system default
+
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
+
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
                 let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
                 let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
 

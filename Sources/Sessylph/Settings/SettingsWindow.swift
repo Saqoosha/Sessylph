@@ -1,6 +1,22 @@
 import AppKit
 import SwiftUI
 
+struct SettingsTabView: View {
+    var body: some View {
+        TabView {
+            GeneralSettingsView()
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+            RemoteHostsSettingsView()
+                .tabItem {
+                    Label("Remote Hosts", systemImage: "network")
+                }
+        }
+        .frame(minWidth: 500, minHeight: 400)
+    }
+}
+
 @MainActor
 final class SettingsWindow {
     static let shared = SettingsWindow()
@@ -15,14 +31,13 @@ final class SettingsWindow {
             return
         }
 
-        let settingsView = GeneralSettingsView()
+        let settingsView = SettingsTabView()
         let hostingController = NSHostingController(rootView: settingsView)
 
-        let fittingSize = hostingController.view.fittingSize
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Settings"
-        window.styleMask = [.titled, .closable]
-        window.setContentSize(fittingSize)
+        window.styleMask = [.titled, .closable, .resizable]
+        window.setContentSize(NSSize(width: 580, height: 520))
         window.center()
 
         let wc = NSWindowController(window: window)

@@ -74,11 +74,20 @@ final class TabManager {
         var reattachedNames = Set<String>()
 
         for saved in savedSessions where !trackedNames.contains(saved.tmuxSessionName) {
-            guard existingSet.contains(saved.tmuxSessionName) else { continue }
-            var session = saved
-            session.isRunning = true
-            orphans.append(session)
-            reattachedNames.insert(saved.tmuxSessionName)
+            if saved.isRemote {
+                // Remote sessions: reattach optimistically (don't block on SSH check)
+                var session = saved
+                session.isRunning = true
+                orphans.append(session)
+                reattachedNames.insert(saved.tmuxSessionName)
+            } else {
+                // Local sessions: verify tmux session exists
+                guard existingSet.contains(saved.tmuxSessionName) else { continue }
+                var session = saved
+                session.isRunning = true
+                orphans.append(session)
+                reattachedNames.insert(saved.tmuxSessionName)
+            }
         }
 
         for name in existingNames where !trackedNames.contains(name) && !reattachedNames.contains(name) {
@@ -97,7 +106,7 @@ final class TabManager {
 
         // Configure all sessions in one batch (best-effort)
         for session in orphans {
-            await TmuxManager.shared.configureSession(name: session.tmuxSessionName)
+            await TmuxManager.shared.configureSession(name: session.tmuxSessionName, remoteHost: session.remoteHost)
         }
 
         // Phase 1: Create all windows and position them in the tab group.
@@ -105,7 +114,8 @@ final class TabManager {
         // default window size before the tab group layout settles.
         var reattachedControllers: [TabWindowController] = []
         for session in orphans {
-            logger.info("Reattaching orphaned tmux session: \(session.tmuxSessionName)")
+            let label = session.isRemote ? "remote" : "local"
+            logger.info("Reattaching \(label) orphaned tmux session: \(session.tmuxSessionName)")
 
             let controller = TabWindowController(session: session)
             windowControllers.append(controller)
@@ -123,8 +133,9 @@ final class TabManager {
             }
         }
 
-        // Clean up saved sessions whose tmux sessions no longer exist
-        for saved in savedSessions where !existingSet.contains(saved.tmuxSessionName) {
+        // Clean up saved LOCAL sessions whose tmux sessions no longer exist
+        // Don't clean up remote sessions — they may just be temporarily unreachable
+        for saved in savedSessions where !saved.isRemote && !existingSet.contains(saved.tmuxSessionName) {
             SessionStore.shared.remove(id: saved.id)
         }
 

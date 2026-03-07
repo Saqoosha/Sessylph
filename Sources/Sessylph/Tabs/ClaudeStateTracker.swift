@@ -42,6 +42,7 @@ final class ClaudeStateTracker {
     var needsAttention: Bool = false
 
     private var sessionName: String
+    private var remoteHost: RemoteHost?
     private var isRunning: () -> Bool
 
     private var titlePollTimer: Timer?
@@ -52,14 +53,19 @@ final class ClaudeStateTracker {
 
     // MARK: - Initialization
 
-    init(sessionName: String, isRunning: @escaping () -> Bool) {
+    init(sessionName: String, remoteHost: RemoteHost? = nil, isRunning: @escaping () -> Bool) {
         self.sessionName = sessionName
+        self.remoteHost = remoteHost
         self.isRunning = isRunning
     }
 
     /// Update the tmux session name (e.g. after a rename).
     func updateSessionName(_ name: String) {
         self.sessionName = name
+    }
+
+    func updateRemoteHost(_ host: RemoteHost?) {
+        self.remoteHost = host
     }
 
     // MARK: - Title Parsing
@@ -168,7 +174,7 @@ final class ClaudeStateTracker {
 
     private func pollPaneTitle() async {
         guard isRunning() else { return }
-        guard let title = await TmuxManager.shared.getPaneTitle(sessionName: sessionName) else { return }
+        guard let title = await TmuxManager.shared.getPaneTitle(sessionName: sessionName, remoteHost: remoteHost) else { return }
         guard title != lastPolledTitle else { return }
         updateTitle(from: title)
     }

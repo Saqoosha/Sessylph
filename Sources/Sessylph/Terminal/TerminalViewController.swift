@@ -106,16 +106,25 @@ final class TerminalViewController: NSViewController {
     // MARK: - Process
 
     func startTmuxAttach() {
-        let tmuxPath: String
-        do {
-            tmuxPath = try ClaudeCLI.tmuxPath()
-        } catch {
-            logger.error("Failed to resolve tmux path: \(error.localizedDescription)")
-            feedError("tmux not found: \(error.localizedDescription)")
-            return
+        let command: String
+        if let remoteHost = session.remoteHost {
+            // Remote: ssh -t [sshArgs] tmux attach-session -t =sessionName
+            let sshArgs = remoteHost.sshArgs.map { shellQuote($0) }.joined(separator: " ")
+            let quotedSession = shellQuote("=\(session.tmuxSessionName)")
+            command = "/usr/bin/ssh -t \(sshArgs) tmux attach-session -t \(quotedSession)"
+        } else {
+            // Local: tmux attach-session -t =sessionName
+            let tmuxPath: String
+            do {
+                tmuxPath = try ClaudeCLI.tmuxPath()
+            } catch {
+                logger.error("Failed to resolve tmux path: \(error.localizedDescription)")
+                feedError("tmux not found: \(error.localizedDescription)")
+                return
+            }
+            let quotedSession = shellQuote("=\(session.tmuxSessionName)")
+            command = "\(tmuxPath) attach-session -t \(quotedSession)"
         }
-
-        let command = "\(tmuxPath) attach-session -t =\(session.tmuxSessionName)"
 
         var envVars: [(String, String)] = []
         let env = EnvironmentBuilder.loginEnvironment()

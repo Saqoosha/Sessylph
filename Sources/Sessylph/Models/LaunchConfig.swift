@@ -3,6 +3,10 @@ import Foundation
 enum LaunchConfig {
     case claudeCode(ClaudeCodeOptions)
     case codex(CodexOptions)
+    /// Attach to an existing remote tmux session
+    case remoteAttach(RemoteHost, sessionName: String)
+    /// Create a new Claude Code session on a remote host
+    case remoteNewSession(RemoteHost, directory: String, ClaudeCodeOptions)
 
     static func defaultFromUserDefaults() -> LaunchConfig {
         let defaults = UserDefaults.standard

@@ -23,6 +23,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     var lastWorkingTaskDescription: String { stateTracker.lastWorkingTaskDescription }
     private lazy var stateTracker: ClaudeStateTracker = ClaudeStateTracker(
         sessionName: session.tmuxSessionName,
+        remoteHost: session.remoteHost,
         isRunning: { [weak self] in self?.session.isRunning ?? false }
     )
     private static let claudeOrange = NSColor(srgbRed: 0xD9/255.0, green: 0x78/255.0, blue: 0x58/255.0, alpha: 1.0)
@@ -162,9 +163,12 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             session = Session(directory: directory, options: options)
         case .codex(let options):
             session = Session(directory: directory, codexOptions: options)
+        case .remoteAttach(let remoteHost, let sessionName):
+            session = Session(remoteHost: remoteHost, tmuxSession: sessionName, directory: directory)
+        case .remoteNewSession(let remoteHost, let remoteDir, let options):
+            session = Session(remoteHost: remoteHost, directory: URL(fileURLWithPath: remoteDir), options: options)
         }
 
-        // Update tab title immediately so the user sees feedback before tmux finishes
         applyTitles(icon: "⏳")
 
         do {
@@ -199,28 +203,52 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                     codexPath: codexPath,
                     notifierArgs: notifierArgs
                 )
+
+            case .remoteAttach(_, _):
+                // No session creation needed — just attach to existing
+                session.isRunning = true
+                SessionStore.shared.add(session)
+
+                // Configure the remote session for title passthrough
+                await TmuxManager.shared.configureSession(name: session.tmuxSessionName, remoteHost: session.remoteHost)
+
+                stateTracker.delegate = self
+                stateTracker.updateSessionName(session.tmuxSessionName)
+                stateTracker.updateRemoteHost(session.remoteHost)
+                applyTitles(icon: ClaudeState.idle.icon)
+                showTerminal()
+                attachToTmux()
+                stateTracker.startTitlePolling()
+                terminalVC?.focusTerminal()
+
+                logger.info("Attached to remote session \(self.session.tmuxSessionName) on \(self.session.remoteHost?.host ?? "unknown")")
+                return
+
+            case .remoteNewSession(_, _, let options):
+                // On remote, claude is in PATH — just use "claude"
+                // No hook settings for remote sessions (notifier is local only)
+                command = options.buildCommand(claudePath: "claude")
             }
 
-            // Single tmux invocation: create session + configure + launch
+            // Create tmux session (local or remote)
             try await TmuxManager.shared.createAndLaunchSession(
                 name: session.tmuxSessionName,
                 directory: directory,
-                command: command
+                command: command,
+                remoteHost: session.remoteHost
             )
 
             session.isRunning = true
             SessionStore.shared.add(session)
         } catch {
-            // Clean up the tmux session if it was already created
+            // Clean up on failure
             do {
-                try await TmuxManager.shared.killSession(name: session.tmuxSessionName)
+                try await TmuxManager.shared.killSession(name: session.tmuxSessionName, remoteHost: session.remoteHost)
             } catch {
                 logger.warning("Failed to clean up tmux session: \(error.localizedDescription)")
             }
 
             logger.error("Failed to launch session: \(error.localizedDescription)")
-
-            // Reset launcher UI before showing the error alert
             showLauncher()
 
             let alert = NSAlert()
@@ -235,13 +263,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         stateTracker.delegate = self
         stateTracker.updateSessionName(session.tmuxSessionName)
+        stateTracker.updateRemoteHost(session.remoteHost)
         applyTitles(icon: ClaudeState.idle.icon)
         showTerminal()
         attachToTmux()
         stateTracker.startTitlePolling()
-
-        // Explicitly focus the terminal — windowDidBecomeKey already fired
-        // before the session was running, so it skipped focusTerminal().
         terminalVC?.focusTerminal()
 
         logger.info("Launched \(self.session.cliType.displayName) in \(directory.path)")
@@ -278,12 +304,13 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         guard newName != session.tmuxSessionName else { return }
 
         let oldName = session.tmuxSessionName
+        let remoteHost = session.remoteHost
         session.tmuxSessionName = newName
         stateTracker.updateSessionName(newName)
         SessionStore.shared.update(session)
 
         Task { [weak self] in
-            let success = await TmuxManager.shared.renameSession(from: oldName, to: newName)
+            let success = await TmuxManager.shared.renameSession(from: oldName, to: newName, remoteHost: remoteHost)
             if !success {
                 self?.session.tmuxSessionName = oldName
                 self?.stateTracker.updateSessionName(oldName)
@@ -384,10 +411,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         if session.isRunning && !TabManager.shared.isTerminating {
             let sessionName = session.tmuxSessionName
+            let remoteHost = session.remoteHost
             session.isRunning = false
             Task {
                 do {
-                    try await TmuxManager.shared.killSession(name: sessionName)
+                    try await TmuxManager.shared.killSession(name: sessionName, remoteHost: remoteHost)
                 } catch {
                     logger.warning("Failed to kill tmux session \(sessionName): \(error.localizedDescription)")
                 }

@@ -77,7 +77,6 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
         .frame(minWidth: 450)
         .onAppear {
             cliOptions = ClaudeCLI.discoverCLIOptions()
