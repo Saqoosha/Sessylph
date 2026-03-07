@@ -1,57 +1,128 @@
 import AppKit
 import SwiftUI
 
-struct SettingsTabView: View {
-    var body: some View {
-        TabView {
-            GeneralSettingsView()
-                .tabItem {
-                    Label("General", systemImage: "gear")
-                }
-            RemoteHostsSettingsView()
-                .tabItem {
-                    Label("Remote Hosts", systemImage: "network")
-                }
+@MainActor
+final class SettingsWindow: NSObject, NSToolbarDelegate {
+    static let shared = SettingsWindow()
+
+    private let windowController: NSWindowController
+    private let tabSelection: SettingsTabSelection
+
+    enum Tab: String, CaseIterable {
+        case general = "General"
+        case remoteHosts = "Remote Hosts"
+
+        var icon: String {
+            switch self {
+            case .general: "gearshape"
+            case .remoteHosts: "network"
+            }
         }
-        .frame(minWidth: 500, minHeight: 400)
+
+        var toolbarItemIdentifier: NSToolbarItem.Identifier {
+            NSToolbarItem.Identifier(rawValue)
+        }
+    }
+
+    private override init() {
+        let selection = SettingsTabSelection()
+        self.tabSelection = selection
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 592, height: 745),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: true
+        )
+        window.toolbarStyle = .preference
+        window.isReleasedWhenClosed = false
+        window.title = Tab.general.rawValue
+
+        let hostingController = NSHostingController(rootView: SettingsContentView(selection: selection))
+        hostingController.sizingOptions = []
+        window.contentViewController = hostingController
+
+        let wc = NSWindowController(window: window)
+        wc.shouldCascadeWindows = false
+        self.windowController = wc
+
+        super.init()
+
+        wc.windowFrameAutosaveName = "SettingsWindow"
+
+        let toolbar = NSToolbar(identifier: "SettingsToolbar")
+        toolbar.delegate = self
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        toolbar.displayMode = .iconAndLabel
+        toolbar.selectedItemIdentifier = Tab.general.toolbarItemIdentifier
+        window.toolbar = toolbar
+
+        if UserDefaults.standard.string(forKey: "NSWindow Frame SettingsWindow") == nil {
+            window.center()
+        }
+    }
+
+    func show() {
+        windowController.showWindow(nil)
+        windowController.window?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - NSToolbarDelegate
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        Tab.allCases.map(\.toolbarItemIdentifier)
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        Tab.allCases.map(\.toolbarItemIdentifier)
+    }
+
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        Tab.allCases.map(\.toolbarItemIdentifier)
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        guard let tab = Tab.allCases.first(where: { $0.toolbarItemIdentifier == itemIdentifier }) else {
+            return nil
+        }
+
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = tab.rawValue
+        item.image = NSImage(systemSymbolName: tab.icon, accessibilityDescription: tab.rawValue)
+        item.target = self
+        item.action = #selector(toolbarItemClicked(_:))
+        return item
+    }
+
+    @objc private func toolbarItemClicked(_ sender: NSToolbarItem) {
+        guard let tab = Tab.allCases.first(where: { $0.toolbarItemIdentifier == sender.itemIdentifier }) else {
+            return
+        }
+        tabSelection.current = tab
+        windowController.window?.title = tab.rawValue
     }
 }
 
+// MARK: - SwiftUI Bridge
+
 @MainActor
-final class SettingsWindow {
-    static let shared = SettingsWindow()
+final class SettingsTabSelection: ObservableObject {
+    @Published var current: SettingsWindow.Tab = .general
+}
 
-    private var windowController: NSWindowController?
+private struct SettingsContentView: View {
+    @ObservedObject var selection: SettingsTabSelection
 
-    private init() {}
-
-    func show() {
-        if let wc = windowController {
-            wc.window?.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        let settingsView = SettingsTabView()
-        let hostingController = NSHostingController(rootView: settingsView)
-
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Settings"
-        window.styleMask = [.titled, .closable, .resizable]
-        window.setContentSize(NSSize(width: 580, height: 520))
-        window.center()
-
-        let wc = NSWindowController(window: window)
-        wc.showWindow(nil)
-        self.windowController = wc
-
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: window,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.windowController = nil
+    var body: some View {
+        Group {
+            switch selection.current {
+            case .general:
+                GeneralSettingsView()
+            case .remoteHosts:
+                RemoteHostsSettingsView()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

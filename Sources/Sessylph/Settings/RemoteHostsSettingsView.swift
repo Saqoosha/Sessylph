@@ -30,13 +30,17 @@ struct RemoteHostsSettingsView: View {
             .frame(minHeight: 120)
             .clipShape(RoundedRectangle(cornerRadius: 6))
 
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 Button(action: addHost) {
                     Image(systemName: "plus")
+                        .frame(width: 12, height: 12)
                 }
+                .controlSize(.small)
                 Button(action: removeHost) {
                     Image(systemName: "minus")
+                        .frame(width: 12, height: 12)
                 }
+                .controlSize(.small)
                 .disabled(selectedHostId == nil)
 
                 Spacer()
@@ -58,6 +62,7 @@ struct RemoteHostsSettingsView: View {
                     .foregroundStyle(testResult.contains("Success") ? .green : .red)
             }
         }
+        .padding(20)
         .sheet(item: $editingHost) { host in
             RemoteHostEditSheet(host: host) { updatedHost in
                 if store.hosts.contains(where: { $0.id == updatedHost.id }) {
