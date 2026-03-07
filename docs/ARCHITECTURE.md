@@ -30,6 +30,7 @@ Internal architecture documentation for developers.
 │  ┌────────────────────────────┴──────────┐      │
 │  │          TmuxManager                  │      │
 │  │  create / attach / kill / query       │      │
+│  │  local + remote SSH commands          │      │
 │  └────────────────────────────┬──────────┘      │
 │                               │                  │
 └───────────────────────────────┼──────────────────┘
@@ -37,7 +38,7 @@ Internal architecture documentation for developers.
                     ┌───────────┴───────────┐
                     │  tmux server          │
                     │  sessylph-XXXXXXXX    │ ← one session per tab
-                    │  → selected CLI       │
+                    │  → selected CLI       │ (local or remote via SSH)
                     └───────────────────────┘
 ```
 
@@ -47,12 +48,15 @@ Internal architecture documentation for developers.
 Sources/
 ├── Sessylph/
 │   ├── App/              AppDelegate, main, Info.plist
-│   ├── Launcher/         LauncherView (SwiftUI directory picker + CLI options)
+│   ├── Launcher/         LauncherView (SwiftUI directory picker + CLI options),
+│   │                     RemoteDirectoryBrowser, ComboBox
 │   ├── Models/           Session, SessionStore, LaunchConfig,
-│   │                     Claude/Codex options, Claude/Codex session history
+│   │                     Claude/Codex options, Claude/Codex session history,
+│   │                     RemoteHost, RemoteHostStore, RemoteHistory
 │   ├── Notifications/    NotificationManager, HookSettingsGenerator
 │   ├── Resources/        Assets
-│   ├── Settings/         SettingsWindow, GeneralSettingsView, SessionConfigSheet
+│   ├── Settings/         SettingsWindow (NSToolbar), GeneralSettingsView,
+│   │                     RemoteHostsSettingsView, SessionConfigSheet
 │   ├── Tabs/             TabManager, TabWindowController, ClaudeStateTracker
 │   ├── Terminal/         GhosttyTerminalView, GhosttyApp, GhosttyConfig,
 │   │                     GhosttyInputHandler, TerminalViewController
@@ -100,10 +104,10 @@ Central registry of all open `TabWindowController` instances.
 One per tab. Manages the lifecycle from launcher → terminal.
 
 **Two UI modes:**
-1. **Launcher** — SwiftUI `LauncherView` for CLI selection, directory selection, and session options
+1. **Launcher** — SwiftUI `LauncherView` for CLI selection, directory selection, remote host selection, and session options
 2. **Terminal** — `TerminalViewController` attached to a tmux session
 
-**Launch flow:**
+**Launch flow (local):**
 ```
 User clicks "Start <selected CLI>" in LauncherView
   → Button shows spinner, form disabled (immediate feedback)
@@ -116,10 +120,21 @@ User clicks "Start <selected CLI>" in LauncherView
   → Switch to TerminalViewController → attachToTmux()
 ```
 
+**Launch flow (remote):**
+```
+User selects remote host + directory (or picks from history)
+  → LaunchConfig.remoteNewSession(host, directory, options)
+  → TmuxManager creates remote tmux session via SSH
+  → TerminalViewController attaches via: ssh -t <host> tmux attach-session -t <name>
+  → ClaudeStateTracker polls remote pane title for notifications
+```
+
 **State tracking:** Claude Code sessions delegate to `ClaudeStateTracker`, which polls tmux pane title every 1 second and parses Claude Code's status emoji:
 - `✳` (U+2733) → idle
 - Braille spinner (U+2800–U+28FF) → working (animated spinner in tab title)
 - `needsAttention` flag → set by notification hooks
+
+For remote sessions, `ClaudeStateTracker` detects working → idle transitions and fires task completion notifications directly (no hook-based notification path available).
 
 Codex sessions currently do not use title-based state parsing, but they do integrate with launcher history and handoff-to-user notifications.
 
@@ -131,10 +146,12 @@ Extracted from TabWindowController. Encapsulates:
 - Timer-based polling (1s interval on main run loop, works for inactive tabs)
 - Tab title spinner animation
 - `ClaudeStateTrackerDelegate` protocol for state change notifications
+- Task completion detection: working → idle transition triggers `stateTrackerDidCompleteTask`
+- `lastWorkingTaskDescription` — retained across idle transitions for notification content
 
 ### TerminalViewController
 
-Hosts a `GhosttyTerminalView` (Metal-rendered NSView), attaching to tmux via a PTY process running `tmux attach-session -t {name}`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
+Hosts a `GhosttyTerminalView` (Metal-rendered NSView), attaching to tmux via a PTY process running `tmux attach-session -t {name}`. For remote sessions, the command is `ssh -t <host> tmux attach-session -t <name>`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
 
 **Working directory isolation:** The ghostty surface uses `/tmp` as its working directory (not the project directory) to avoid triggering macOS TCC prompts for ~/Documents. The actual working directory is managed by tmux via `new-session -c`.
 
@@ -168,15 +185,19 @@ Hosts a `GhosttyTerminalView` (Metal-rendered NSView), attaching to tmux via a P
 All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. Commands are batched using tmux's `;` separator to minimize process spawns.
 
 - **Session lifecycle:** `createAndLaunchSession()` (create + configure + launch in one invocation), `configureSession()` (for reattach), kill
+- **Remote SSH:** `executeRemoteCommand()` runs tmux commands on remote hosts via SSH, `shellEscape()` for safe argument passing
 - **Queries:** list sessions, get pane title, get current path, get window size, capture pane history
-- **Server config:** Extended keys, CSI u, alternate screen disabled (smcup@:rmcup@), mouse off, window size "latest" (all batched into session creation)
+- **Server config:** Extended keys, CSI u, alternate screen disabled (smcup@:rmcup@), mouse off, window size "latest", allow-rename on (all batched into session creation)
 - **Session naming:** `sessylph-{first 8 chars of UUID}`
+- **Remote target safety:** Uses plain session names (no `=` prefix) for remote `-t` targets since `=` prefix is not supported over SSH
 
 ### Models
 
 **Session** (Identifiable, Codable, Sendable)
 - `id`, `directory`, `options`, `tmuxSessionName`, `isRunning`, `createdAt`
+- `remoteHost` — optional `RemoteHost` for remote sessions (backward-compatible Codable)
 - `title` is computed from `directory.lastPathComponent`
+- `isRemote` computed property checks for `remoteHost` presence
 - `CodingKeys` excludes `isRunning` (transient runtime state)
 
 **ClaudeCodeOptions** / **CodexOptions** (Codable, Sendable)
@@ -184,8 +205,22 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 - `CodexOptions` also supports `resumeSessionId` for launcher history resume
 
 **LaunchConfig**
-- Enum wrapping `.claudeCode(ClaudeCodeOptions)` and `.codex(CodexOptions)`
+- Enum wrapping `.claudeCode(ClaudeCodeOptions)`, `.codex(CodexOptions)`, `.remoteAttach(RemoteHost, sessionName)`, and `.remoteNewSession(RemoteHost, directory, ClaudeCodeOptions)`
 - Also builds a default launch configuration from `UserDefaults` for directory-based launches
+
+**RemoteHost** (Identifiable, Codable, Hashable, Sendable)
+- `id` (UUID), `label`, `host`, `port`, `user`, `identityFile`
+- `sshArgs` computed property builds SSH argument array
+- `isValid` computed property validates host format and port range
+
+**RemoteHostStore** (@MainActor singleton)
+- Persists `[RemoteHost]` to UserDefaults
+- Provides CRUD operations for remote host configurations
+
+**RemoteHistory**
+- MRU list of `RemoteHistoryEntry` (hostId + directory + lastUsed), max 50 entries
+- Persisted to UserDefaults as JSON
+- Used by launcher to show recent remote host:directory pairs
 
 **ClaudeSessionHistory** / **CodexSessionHistory**
 - Parse recent session metadata from `~/.claude/projects` and `~/.codex`
@@ -197,21 +232,29 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 ### Notifications
 
 ```
-Claude Code hook or Codex notify fires
-  → sessylph-notifier {sessionId} {event}    (bundled CLI)
-  → reads stdin / argv[3] (hook context JSON)
-  → DistributedNotificationCenter.post("sh.saqoo.Sessylph.hookEvent")
+Local notifications:
+  Claude Code hook or Codex notify fires
+    → sessylph-notifier {sessionId} {event}    (bundled CLI)
+    → reads stdin / argv[3] (hook context JSON)
+    → DistributedNotificationCenter.post("sh.saqoo.Sessylph.hookEvent")
 
-AppDelegate listener
-  → extracts sessionId, event, message
-  → pre-computes isFrontmost before any state changes
-  → Claude "stop" event + activateOnStop preference:
-      → TabManager.bringToFront(sessionId) — activates app/tab
-      → 0.5s delayed notification post (avoids macOS swallowing it during activation)
-  → Codex "notify" event:
-      → "Codex Is Ready" notification (handoff to user, no auto-activate)
-  → "permission_prompt" → TabWindowController.markNeedsAttention()
-  → NotificationManager posts UNUserNotification (if not frontmost)
+  AppDelegate listener
+    → extracts sessionId, event, message
+    → pre-computes isFrontmost before any state changes
+    → Claude "stop" event + activateOnStop preference:
+        → TabManager.bringToFront(sessionId) — activates app/tab
+        → 0.5s delayed notification post (avoids macOS swallowing it during activation)
+    → Codex "notify" event:
+        → "Codex Is Ready" notification (handoff to user, no auto-activate)
+    → "permission_prompt" → TabWindowController.markNeedsAttention()
+    → NotificationManager posts UNUserNotification (if not frontmost)
+
+Remote notifications:
+  ClaudeStateTracker polls tmux pane title every 1s (via SSH for remote)
+    → Detects working → idle state transition
+    → TabWindowController.stateTrackerDidCompleteTask()
+    → Posts UNUserNotification with task description
+    → Optionally activates app/tab (activateOnStop preference)
 
 User clicks notification
   → TabManager.bringToFront(sessionId)
@@ -225,6 +268,16 @@ User clicks notification
 
 ### Settings & Preferences
 
+**SettingsWindow** — Singleton NSToolbar-based window with `toolbarStyle(.preference)` (macOS HIG-compliant).
+- Two tabs: General, Remote Hosts
+- Uses `NSWindowController.windowFrameAutosaveName` for persistent frame
+- Single SwiftUI content view with `ObservableObject` tab selection for flicker-free switching
+- `show(tab:)` method to open a specific tab programmatically (e.g., "Manage Hosts..." button)
+
+**GeneralSettingsView** — Launcher defaults, notification toggles, font slider, Claude/Codex version display.
+
+**RemoteHostsSettingsView** — CRUD interface for remote host configurations with SSH connection testing.
+
 **Defaults** — Static keys for `UserDefaults`:
 - General: default model, permission mode
 - Appearance: font name, font size (10–24pt)
@@ -233,8 +286,6 @@ User clicks notification
 - Launcher state: persisted between launches
 - Alerts: suppress close/quit confirmations
 - Session state: active session ID, recent directories
-
-**SettingsWindow** — Modal SwiftUI window with `GeneralSettingsView` (launcher defaults, notification toggles, font slider, Claude/Codex version display).
 
 ### Utilities
 
@@ -248,11 +299,12 @@ User clicks notification
 | `ImagePasteHelper` | Extracts images from pasteboard, saves to temp, returns path |
 | `PermissionMode` | Shared permission mode label formatting |
 | `RecentDirectories` | Recent directory picker history |
+| `RemoteHistory` | MRU list of remote host:directory pairs |
 
 ## Concurrency Model
 
-- **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow, ClaudeStateTracker
-- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions, CodexOptions
+- **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow, ClaudeStateTracker, RemoteHostStore
+- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions, CodexOptions, RemoteHost
 - **Thread safety:** `OSAllocatedUnfairLock` for `EnvironmentBuilder` cache, `DispatchQueue.main.async` for ghostty clipboard callbacks
 - **C interop:** `nonisolated(unsafe)` on ghostty surface property for deinit access
 
@@ -277,3 +329,25 @@ App launches
 - Frame autosave: `NSWindowController.windowFrameAutosaveName = "SessylphTerminalWindow"`
 - Tab order: `addTabbedWindow(newWindow, ordered: .above)` relative to last added window
 - Cmd+1–9 switching: `NSEvent.addLocalMonitorForEvents(matching: .keyDown)`
+
+## Remote SSH Architecture
+
+Remote sessions connect to hosts via SSH and manage tmux sessions on the remote machine.
+
+```
+LauncherView (remote mode)
+  → User selects host + browses directories (RemoteDirectoryBrowser via SSH ls)
+  → Or picks from RemoteHistory (MRU list of host:directory pairs)
+  → TmuxManager.createAndLaunchSession() with remoteHost parameter
+      → Executes tmux commands on remote via: ssh <args> tmux <commands>
+      → Uses shellEscape() for safe argument passing over SSH
+  → TerminalViewController attaches via:
+      ssh -t <args> tmux attach-session -t <sessionName>
+  → ClaudeStateTracker polls remote pane title via SSH for notifications
+
+Key differences from local:
+  - No `=` prefix for tmux -t targets (not supported over SSH)
+  - `allow-rename on` set explicitly (remote tmux may default to off)
+  - Notifications via title polling instead of hooks (hooks can't bridge SSH)
+  - Remote history stored separately from local recent directories
+```

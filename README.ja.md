@@ -12,8 +12,9 @@
 
 - **タブインターフェース** — 各タブが独立した Claude Code または Codex セッションを実行。macOS ネイティブのウィンドウタブを使用
 - **tmux 永続化** — セッションはアプリの再起動後も維持され、スクロールバック履歴付きでシームレスに再接続
-- **セッション履歴** — Launcher から最近の Claude Code / Codex セッションをそのまま再開可能
-- **デスクトップ通知** — Claude Code の完了通知や、Codex が user turn に戻った時の通知を表示
+- **リモート SSH セッション** — リモートホストに SSH 接続して Claude Code を実行。ディレクトリブラウジングとセッション履歴対応
+- **セッション履歴** — Launcher から最近の Claude Code / Codex セッションをそのまま再開可能（リモートの host:directory ペアも含む）
+- **デスクトップ通知** — Claude Code の完了通知（ローカルは hook 経由、リモートはタイトルポーリング）や、Codex が user turn に戻った時の通知を表示
 - **自動アクティブ化** — タスク完了時にアプリとタブを自動的に前面に表示（設定で切り替え可能）
 - **画像ペースト** — Cmd+V でターミナルに直接画像を貼り付け
 - **カスタマイズ** — CLI 種別、モデル、承認モード、外観、動作を設定画面から変更可能
@@ -40,10 +41,17 @@
         ↓
   TerminalViewController (GhosttyKit/Metal が tmux に接続)
 
-通知:
+通知 (ローカル):
   Claude Code hook / Codex notify → sessylph-notifier CLI
         ↓
   DistributedNotificationCenter
+        ↓
+  NotificationManager → UNUserNotificationCenter
+
+通知 (リモート):
+  ClaudeStateTracker が tmux pane title をポーリング (1秒間隔)
+        ↓
+  working → idle 遷移を検出
         ↓
   NotificationManager → UNUserNotificationCenter
 ```
@@ -82,9 +90,9 @@ Sources/
 ├── Sessylph/              # メインアプリ (AppKit + SwiftUI)
 │   ├── App/               # AppDelegate, エントリポイント
 │   ├── Launcher/          # ディレクトリ選択 + オプション (SwiftUI)
-│   ├── Models/            # Session, LaunchConfig, Claude/Codex オプション + 履歴
+│   ├── Models/            # Session, LaunchConfig, Claude/Codex オプション + 履歴, RemoteHost
 │   ├── Notifications/     # Hook連携 + デスクトップ通知
-│   ├── Settings/          # 設定ウィンドウ (SwiftUI)
+│   ├── Settings/          # 設定ウィンドウ (NSToolbar + SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController
 │   ├── Terminal/          # GhosttyKit ターミナルビュー (Metal)
 │   ├── Tmux/              # tmux セッション管理

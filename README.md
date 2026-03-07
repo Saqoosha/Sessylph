@@ -12,8 +12,9 @@ English | [日本語](README.ja.md)
 
 - **Tabbed Interface** — Each tab runs an independent Claude Code or Codex session using native macOS window tabbing
 - **tmux Persistence** — Sessions survive app restarts; reconnect to running conversations with scrollback history preserved
-- **Session History** — Resume recent Claude Code and Codex sessions directly from the launcher
-- **Desktop Notifications** — Get notified when Claude Code completes a task or when Codex hands the turn back to you
+- **Remote SSH Sessions** — Connect to remote hosts and run Claude Code over SSH with directory browsing and session history
+- **Session History** — Resume recent Claude Code and Codex sessions directly from the launcher, including remote host:directory pairs
+- **Desktop Notifications** — Get notified when Claude Code completes a task (local via hooks, remote via title polling) or when Codex hands the turn back to you
 - **Auto-Activate** — Optionally bring the app and tab to front when a task completes
 - **Image Paste** — Paste images directly into the terminal with Cmd+V
 - **Configurable** — Customize CLI type, model, approval mode, appearance, and behavior via Settings
@@ -40,10 +41,17 @@ User opens new tab
         ↓
   TerminalViewController (GhosttyKit/Metal attaches to tmux)
 
-Notifications:
+Notifications (local):
   Claude Code hook / Codex notify → sessylph-notifier CLI
         ↓
   DistributedNotificationCenter
+        ↓
+  NotificationManager → UNUserNotificationCenter
+
+Notifications (remote):
+  ClaudeStateTracker polls tmux pane title (1s)
+        ↓
+  working → idle transition detected
         ↓
   NotificationManager → UNUserNotificationCenter
 ```
@@ -82,9 +90,9 @@ Sources/
 ├── Sessylph/              # Main app (AppKit + SwiftUI)
 │   ├── App/               # AppDelegate, entry point
 │   ├── Launcher/          # Directory picker + options (SwiftUI)
-│   ├── Models/            # Session, LaunchConfig, Claude/Codex options + history
+│   ├── Models/            # Session, LaunchConfig, Claude/Codex options + history, RemoteHost
 │   ├── Notifications/     # Hook integration + desktop notifications
-│   ├── Settings/          # Preferences window (SwiftUI)
+│   ├── Settings/          # Preferences window (NSToolbar + SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController
 │   ├── Terminal/          # GhosttyKit terminal view (Metal)
 │   ├── Tmux/              # tmux session management
