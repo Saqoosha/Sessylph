@@ -12,6 +12,7 @@ enum Defaults {
     static let codexModel = "codexModel"
     static let codexApprovalMode = "codexApprovalMode"
     static let codexFullAuto = "codexFullAuto"
+    static let codexDangerouslyBypass = "codexDangerouslyBypass"
 
     // MARK: - Appearance
     static let terminalFontName = "terminalFontName"

@@ -4,6 +4,7 @@ struct CodexOptions: Codable, Sendable {
     var model: String?
     var approvalMode: String?
     var fullAuto: Bool = false
+    var dangerouslyBypassApprovalsAndSandbox: Bool = false
 
     init() {}
 
@@ -16,7 +17,9 @@ struct CodexOptions: Codable, Sendable {
             parts.append(shellQuote(model))
         }
 
-        if fullAuto {
+        if dangerouslyBypassApprovalsAndSandbox {
+            parts.append("--dangerously-bypass-approvals-and-sandbox")
+        } else if fullAuto {
             parts.append("--full-auto")
         } else if let approvalMode {
             parts.append("--ask-for-approval")

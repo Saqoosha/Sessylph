@@ -1,5 +1,43 @@
 import SwiftUI
 
+private enum CodexExecutionMode: String, CaseIterable {
+    case ask
+    case fullAuto
+    case yolo
+
+    var displayName: String {
+        switch self {
+        case .ask: return "Ask"
+        case .fullAuto: return "Full auto"
+        case .yolo: return "YOLO"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .ask: return "Uses the selected approval policy."
+        case .fullAuto: return "Runs sandboxed with low-friction approvals."
+        case .yolo: return "No sandbox, no approvals. Extremely dangerous."
+        }
+    }
+
+    var detailLabel: String {
+        switch self {
+        case .ask: return "Approval:"
+        case .fullAuto: return "Behavior:"
+        case .yolo: return "Warning:"
+        }
+    }
+
+    var detailValue: String {
+        switch self {
+        case .ask: return ""
+        case .fullAuto: return "workspace-write + on-request"
+        case .yolo: return "No sandbox / no approvals"
+        }
+    }
+}
+
 struct LauncherView: View {
     // CLI type selection
     @AppStorage(Defaults.defaultCLIType) private var cliTypeRaw = CLIType.claudeCode.rawValue
@@ -13,6 +51,7 @@ struct LauncherView: View {
     @AppStorage(Defaults.codexModel) private var codexModel = ""
     @AppStorage(Defaults.codexApprovalMode) private var codexApprovalMode = "on-request"
     @AppStorage(Defaults.codexFullAuto) private var codexFullAuto = false
+    @AppStorage(Defaults.codexDangerouslyBypass) private var codexDangerouslyBypass = false
 
     @State private var selectedDirectory: URL?
     @State private var recentDirectories: [URL] = []
@@ -26,6 +65,29 @@ struct LauncherView: View {
 
     private var cliType: CLIType {
         CLIType(rawValue: cliTypeRaw) ?? .claudeCode
+    }
+
+    private var codexExecutionMode: Binding<CodexExecutionMode> {
+        Binding(
+            get: {
+                if codexDangerouslyBypass { return .yolo }
+                if codexFullAuto { return .fullAuto }
+                return .ask
+            },
+            set: { newValue in
+                switch newValue {
+                case .ask:
+                    codexFullAuto = false
+                    codexDangerouslyBypass = false
+                case .fullAuto:
+                    codexFullAuto = true
+                    codexDangerouslyBypass = false
+                case .yolo:
+                    codexFullAuto = false
+                    codexDangerouslyBypass = true
+                }
+            }
+        )
     }
 
     var onLaunch: ((URL, LaunchConfig) -> Void)?
@@ -144,6 +206,7 @@ struct LauncherView: View {
             .toggleStyle(.checkbox)
             .frame(maxWidth: .infinity)
         }
+        .frame(minHeight: 94, alignment: .top)
     }
 
     private var codexOptionsView: some View {
@@ -158,24 +221,42 @@ struct LauncherView: View {
                 }
 
                 GridRow {
-                    Text("Approval:")
+                    Text("Mode:")
                         .foregroundStyle(.secondary)
                         .gridColumnAlignment(.trailing)
-                    Picker("", selection: $codexApprovalMode) {
-                        ForEach(codexCLIOptions.approvalModes, id: \.self) { mode in
-                            Text(mode).tag(mode)
+                    Picker("", selection: codexExecutionMode) {
+                        ForEach(CodexExecutionMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.displayName).tag(mode)
                         }
                     }
                     .labelsHidden()
                     .fixedSize()
-                    .disabled(codexFullAuto)
+                }
+
+                GridRow {
+                    Text(codexExecutionMode.wrappedValue.detailLabel)
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Group {
+                        if codexExecutionMode.wrappedValue == .ask {
+                            Picker("", selection: $codexApprovalMode) {
+                                ForEach(codexCLIOptions.approvalModes, id: \.self) { mode in
+                                    Text(mode).tag(mode)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 180, alignment: .leading)
+                        } else {
+                            Text(codexExecutionMode.wrappedValue.detailValue)
+                                .font(.callout)
+                                .foregroundStyle(codexExecutionMode.wrappedValue == .yolo ? .red : .secondary)
+                                .frame(width: 180, alignment: .leading)
+                        }
+                    }
                 }
             }
-
-            Toggle("Full auto", isOn: $codexFullAuto)
-                .toggleStyle(.checkbox)
-                .frame(maxWidth: .infinity)
         }
+        .frame(minHeight: 94, alignment: .top)
     }
 
     // MARK: - Directory Card
@@ -450,11 +531,15 @@ struct LauncherView: View {
         case .codex:
             var opts = CodexOptions()
             opts.model = codexModel.isEmpty ? nil : codexModel
-            opts.fullAuto = codexFullAuto
-            if !codexFullAuto {
+            switch codexExecutionMode.wrappedValue {
+            case .ask:
                 // Only pass approval mode if it's a valid value
                 let validModes = Set(codexCLIOptions.approvalModes)
                 opts.approvalMode = validModes.contains(codexApprovalMode) ? codexApprovalMode : nil
+            case .fullAuto:
+                opts.fullAuto = true
+            case .yolo:
+                opts.dangerouslyBypassApprovalsAndSandbox = true
             }
             config = .codex(opts)
         }
