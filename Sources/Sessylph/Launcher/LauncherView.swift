@@ -61,6 +61,7 @@ struct LauncherView: View {
     @State private var codexCLIOptions = CodexCLI.CLIOptions(approvalModes: [])
     @State private var searchText = ""
     @State private var ccSessions: [ClaudeSessionEntry] = []
+    @State private var codexSessions: [CodexSessionEntry] = []
     @State private var hoveredSessionId: String?
 
     private var cliType: CLIType {
@@ -123,7 +124,10 @@ struct LauncherView: View {
             cliOptions = ClaudeCLI.discoverCLIOptions()
             codexCLIOptions = CodexCLI.discoverCLIOptions()
             Task {
-                ccSessions = await ClaudeSessionHistory.shared.loadSessions()
+                async let claudeSessions = ClaudeSessionHistory.shared.loadSessions()
+                async let codexSessions = CodexSessionHistory.shared.loadSessions()
+                ccSessions = await claudeSessions
+                self.codexSessions = await codexSessions
             }
         }
     }
@@ -366,6 +370,16 @@ struct LauncherView: View {
         }
     }
 
+    private var filteredCodexSessions: [CodexSessionEntry] {
+        guard !searchText.isEmpty else { return codexSessions }
+        let query = searchText.lowercased()
+        return codexSessions.filter { session in
+            session.title.lowercased().contains(query)
+                || session.projectName.lowercased().contains(query)
+                || session.projectPath.lowercased().contains(query)
+        }
+    }
+
     private var listsSection: some View {
         HStack(alignment: .top, spacing: 20) {
             // Recent directories (left)
@@ -391,7 +405,7 @@ struct LauncherView: View {
 
             // Sessions (right)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Claude Sessions")
+                Text(cliType == .claudeCode ? "Claude Sessions" : "Codex Sessions")
                     .font(.headline)
 
                 if cliType == .claudeCode {
@@ -409,16 +423,16 @@ struct LauncherView: View {
                     .background(.regularMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Session resume is available only for Claude Code.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Text("Switch back to Claude Code to resume a previous conversation.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(filteredCodexSessions.enumerated()), id: \.element.id) { index, session in
+                                codexSessionRow(session)
+                                if index < filteredCodexSessions.count - 1 {
+                                    Divider().padding(.leading, 34)
+                                }
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(12)
                     .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
                     .background(.regularMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -527,6 +541,45 @@ struct LauncherView: View {
         }
     }
 
+    private func codexSessionRow(_ session: CodexSessionEntry) -> some View {
+        let isHovered = hoveredSessionId == session.id
+        return Button {
+            launchCodexSession(session)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "terminal")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.title)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(session.projectName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("\u{00B7}")
+                            .font(.caption2)
+                            .foregroundStyle(.quaternary)
+                        Text(Self.sessionDateFormatter.string(from: session.timestamp))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered in
+            hoveredSessionId = hovered ? session.id : nil
+        }
+    }
+
     // MARK: - Actions
 
     private func launch() {
@@ -552,6 +605,17 @@ struct LauncherView: View {
         onLaunch?(dir, .claudeCode(opts))
     }
 
+    private func launchCodexSession(_ session: CodexSessionEntry) {
+        guard !isLaunching else { return }
+        let dir = URL(fileURLWithPath: session.projectPath)
+        selectedDirectory = dir
+        isLaunching = true
+        RecentDirectories.add(dir)
+        var opts = makeCodexOptions()
+        opts.resumeSessionId = session.id
+        onLaunch?(dir, .codex(opts))
+    }
+
     private func makeLaunchConfig() -> LaunchConfig {
         switch cliType {
         case .claudeCode:
@@ -564,19 +628,23 @@ struct LauncherView: View {
             return .claudeCode(opts)
 
         case .codex:
-            var opts = CodexOptions()
-            opts.model = codexModel.isEmpty ? nil : codexModel
-            switch codexExecutionMode.wrappedValue {
-            case .ask:
-                let validModes = Set(codexCLIOptions.approvalModes)
-                opts.approvalMode = validModes.contains(codexApprovalMode) ? codexApprovalMode : nil
-            case .fullAuto:
-                opts.fullAuto = true
-            case .yolo:
-                opts.dangerouslyBypassApprovalsAndSandbox = true
-            }
-            return .codex(opts)
+            return .codex(makeCodexOptions())
         }
+    }
+
+    private func makeCodexOptions() -> CodexOptions {
+        var opts = CodexOptions()
+        opts.model = codexModel.isEmpty ? nil : codexModel
+        switch codexExecutionMode.wrappedValue {
+        case .ask:
+            let validModes = Set(codexCLIOptions.approvalModes)
+            opts.approvalMode = validModes.contains(codexApprovalMode) ? codexApprovalMode : nil
+        case .fullAuto:
+            opts.fullAuto = true
+        case .yolo:
+            opts.dangerouslyBypassApprovalsAndSandbox = true
+        }
+        return opts
     }
 
     private func removeRecent(_ dir: URL) {

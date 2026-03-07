@@ -5,6 +5,7 @@ struct CodexOptions: Codable, Sendable {
     var approvalMode: String?
     var fullAuto: Bool = false
     var dangerouslyBypassApprovalsAndSandbox: Bool = false
+    var resumeSessionId: String? = nil
 
     init() {}
 
@@ -31,6 +32,11 @@ struct CodexOptions: Codable, Sendable {
             let tomlArray = notifierArgs.map { "\"\($0)\"" }.joined(separator: ", ")
             parts.append("--config")
             parts.append("'notify=[\(tomlArray)]'")
+        }
+
+        if let resumeSessionId {
+            parts.append("resume")
+            parts.append(shellQuote(resumeSessionId))
         }
 
         return parts.joined(separator: " ")
