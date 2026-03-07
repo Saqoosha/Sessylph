@@ -98,6 +98,7 @@ final class TmuxManager: Sendable {
                 ["set-option", "-t", t, "set-titles", "on"],
                 ["set-option", "-t", t, "set-titles-string", "#{pane_title}"],
                 ["set-option", "-t", t, "allow-passthrough", "on"],
+                ["set-window-option", "-t", t, "allow-rename", "on"],
                 ["set-option", "-t", t, "mouse", "off"],
                 ["set-option", "-s", "extended-keys", "on"],
                 ["set-option", "-g", "window-size", "latest"],
@@ -112,6 +113,7 @@ final class TmuxManager: Sendable {
                 "set-option", "-t", t, "set-titles", "on",
                 ";", "set-option", "-t", t, "set-titles-string", "#{pane_title}",
                 ";", "set-option", "-t", t, "allow-passthrough", "on",
+                ";", "set-window-option", "-t", t, "allow-rename", "on",
                 ";", "set-option", "-t", t, "mouse", "off",
             ] + Self.serverOptions)
         }
@@ -244,8 +246,10 @@ final class TmuxManager: Sendable {
     /// Returns the current pane title for the given session.
     func getPaneTitle(sessionName: String, remoteHost: RemoteHost? = nil) async -> String? {
         do {
+            // Remote tmux may not support `=` prefix for exact-match targets
+            let target = remoteHost != nil ? sessionName : "=\(sessionName)"
             let output = try await runTmux(args: [
-                "display-message", "-t", "=\(sessionName)", "-p", "#{pane_title}",
+                "display-message", "-t", target, "-p", "#{pane_title}",
             ], remoteHost: remoteHost)
             let title = output.trimmingCharacters(in: .whitespacesAndNewlines)
             return title.isEmpty ? nil : title
@@ -258,8 +262,9 @@ final class TmuxManager: Sendable {
     /// Returns the tmux window dimensions (cols, rows) for the given session.
     func getWindowSize(sessionName: String, remoteHost: RemoteHost? = nil) async -> (cols: Int, rows: Int)? {
         do {
+            let target = remoteHost != nil ? sessionName : "=\(sessionName)"
             let output = try await runTmux(args: [
-                "display-message", "-t", "=\(sessionName)", "-p", "#{window_width},#{window_height}",
+                "display-message", "-t", target, "-p", "#{window_width},#{window_height}",
             ], remoteHost: remoteHost)
             let parts = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ",")
             guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return nil }
@@ -273,8 +278,9 @@ final class TmuxManager: Sendable {
     /// Returns the current working directory of the active pane.
     func getPaneCurrentPath(sessionName: String, remoteHost: RemoteHost? = nil) async -> String? {
         do {
+            let target = remoteHost != nil ? sessionName : "=\(sessionName)"
             let output = try await runTmux(args: [
-                "display-message", "-t", "=\(sessionName)", "-p", "#{pane_current_path}",
+                "display-message", "-t", target, "-p", "#{pane_current_path}",
             ], remoteHost: remoteHost)
             let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
             return path.isEmpty ? nil : path

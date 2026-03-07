@@ -25,6 +25,7 @@ enum ClaudeState {
 protocol ClaudeStateTrackerDelegate: AnyObject {
     func stateTracker(_ tracker: ClaudeStateTracker, didUpdateState state: ClaudeState, icon: String)
     func stateTracker(_ tracker: ClaudeStateTracker, wantsRename newName: String)
+    func stateTrackerDidCompleteTask(_ tracker: ClaudeStateTracker)
 }
 
 // MARK: - ClaudeStateTracker
@@ -101,7 +102,13 @@ final class ClaudeStateTracker {
     func updateTitle(from rawTitle: String) {
         lastPolledTitle = rawTitle
         let (state, taskDesc) = Self.parseClaudeTitle(rawTitle)
+        let previousState = claudeState
         claudeState = state
+
+        // Detect task completion: working → idle
+        if previousState == .working, state == .idle {
+            delegate?.stateTrackerDidCompleteTask(self)
+        }
 
         if state == .working {
             needsAttention = false

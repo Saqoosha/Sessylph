@@ -299,6 +299,28 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         renameTmuxSession(task: newName)
     }
 
+    func stateTrackerDidCompleteTask(_ tracker: ClaudeStateTracker) {
+        // For remote sessions, hooks don't work — use title-based detection instead.
+        // Local sessions use hook-based notifications via sessylph-notifier.
+        guard session.isRemote else { return }
+
+        let taskDescription = tracker.lastWorkingTaskDescription
+        let sessionTitle = session.title
+        let notificationBody = taskDescription.isEmpty ? sessionTitle : "\(sessionTitle) — \(taskDescription)"
+        let isTabVisible = window?.isKeyWindow == true && NSApp.isActive
+
+        if UserDefaults.standard.bool(forKey: Defaults.activateOnStop), !NSApp.isActive {
+            TabManager.shared.bringToFront(sessionId: session.id)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationManager.shared.postTaskCompleted(
+                    sessionTitle: notificationBody, sessionId: self.session.id.uuidString, isFrontmost: isTabVisible)
+            }
+        } else {
+            NotificationManager.shared.postTaskCompleted(
+                sessionTitle: notificationBody, sessionId: session.id.uuidString, isFrontmost: isTabVisible)
+        }
+    }
+
     private func renameTmuxSession(task: String) {
         let newName = TmuxManager.sessionName(for: session.id, directory: session.directory, task: task)
         guard newName != session.tmuxSessionName else { return }
