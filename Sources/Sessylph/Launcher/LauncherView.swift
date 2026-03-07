@@ -72,6 +72,8 @@ struct LauncherView: View {
     @State private var remoteDirectory = "~"
     @State private var remoteConnectionError: String?
     @State private var showRemoteBrowser = false
+    @State private var remoteHistory: [RemoteHistoryEntry] = []
+    @State private var hoveredRemoteHistoryId: String?
 
     @ObservedObject private var remoteHostStore = RemoteHostStore.shared
 
@@ -147,6 +149,7 @@ struct LauncherView: View {
         }
         .onAppear {
             recentDirectories = RecentDirectories.load()
+            remoteHistory = RemoteHistory.load()
             cliOptions = ClaudeCLI.discoverCLIOptions()
             codexCLIOptions = CodexCLI.discoverCLIOptions()
             Task {
@@ -643,6 +646,9 @@ struct LauncherView: View {
                 }
             }
 
+            // Claude options (always visible so history launches use them too)
+            claudeCodeOptions
+
             if selectedRemoteHostId != nil {
                 // Remote directory input
                 VStack(alignment: .leading, spacing: 8) {
@@ -672,9 +678,6 @@ struct LauncherView: View {
                     }
                 }
 
-                // Claude options for new session
-                claudeCodeOptions
-
                 // Start new remote session button
                 Button {
                     launchRemoteNewSession()
@@ -685,54 +688,192 @@ struct LauncherView: View {
                 .controlSize(.large)
                 .keyboardShortcut(.return, modifiers: [])
                 .disabled(selectedRemoteHostId == nil || remoteDirectory.isEmpty || isLaunching)
+            }
 
-                Divider()
+            // Remote history (always visible when in remote mode)
+            remoteHistorySection
 
-                // Remote sessions list
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Remote tmux Sessions")
-                            .font(.headline)
-                        Spacer()
-                        if isLoadingRemoteSessions {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Button {
-                                loadRemoteSessions()
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            .buttonStyle(.plain)
+            // Remote tmux sessions
+            if selectedRemoteHostId != nil {
+                remoteSessionsSection
+            }
+        }
+    }
+
+    // MARK: - Remote History
+
+    private var filteredRemoteHistory: [RemoteHistoryEntry] {
+        let entries: [RemoteHistoryEntry]
+        if let hostId = selectedRemoteHostId {
+            entries = remoteHistory.filter { $0.hostId == hostId }
+        } else {
+            entries = remoteHistory
+        }
+        guard !searchText.isEmpty else { return entries }
+        let query = searchText.lowercased()
+        return entries.filter { entry in
+            let host = remoteHostStore.hosts.first { $0.id == entry.hostId }
+            return entry.directory.lowercased().contains(query)
+                || (host?.label.lowercased().contains(query) ?? false)
+                || (host?.host.lowercased().contains(query) ?? false)
+        }
+    }
+
+    private var remoteHistorySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Recent")
+                .font(.headline)
+
+            if !remoteHistory.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.tertiary)
+                        .font(.callout)
+                    TextField("Filter...", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.callout)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.tertiary)
+                                .font(.callout)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    if filteredRemoteHistory.isEmpty {
+                        Text("No recent remote sessions")
+                            .foregroundStyle(.tertiary)
+                            .padding()
+                    }
+                    ForEach(Array(filteredRemoteHistory.enumerated()), id: \.element.id) { index, entry in
+                        remoteHistoryRow(entry)
+                        if index < filteredRemoteHistory.count - 1 {
+                            Divider().padding(.leading, 34)
                         }
                     }
-
-                    if let error = remoteConnectionError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            if remoteSessions.isEmpty && !isLoadingRemoteSessions {
-                                Text("No active tmux sessions")
-                                    .foregroundStyle(.tertiary)
-                                    .padding()
-                            }
-                            ForEach(Array(remoteSessions.enumerated()), id: \.element.name) { index, session in
-                                remoteSessionRow(session)
-                                if index < remoteSessions.count - 1 {
-                                    Divider().padding(.leading, 34)
-                                }
-                            }
-                        }
-                    }
-                    .frame(height: Self.rowHeight * CGFloat(min(Self.listRowCount, max(3, remoteSessions.count))))
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
+            .frame(height: Self.rowHeight * CGFloat(min(Self.listRowCount, max(3, filteredRemoteHistory.count))))
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func remoteHistoryRow(_ entry: RemoteHistoryEntry) -> some View {
+        let isHovered = hoveredRemoteHistoryId == entry.id
+        let host = remoteHostStore.hosts.first { $0.id == entry.hostId }
+        return Button {
+            if let host {
+                selectedRemoteHostId = host.id
+                remoteDirectory = entry.directory
+                launchRemoteNewSession()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "network")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.directory)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    if let host {
+                        Text(host.displayName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+                if isHovered {
+                    Button {
+                        removeRemoteHistory(entry)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(Self.relativeDate(entry.lastUsed))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered in
+            hoveredRemoteHistoryId = hovered ? entry.id : nil
+        }
+    }
+
+    private static func relativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    // MARK: - Remote Sessions
+
+    private var remoteSessionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Active tmux Sessions")
+                    .font(.headline)
+                Spacer()
+                if isLoadingRemoteSessions {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Button {
+                        loadRemoteSessions()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if let error = remoteConnectionError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    if remoteSessions.isEmpty && !isLoadingRemoteSessions {
+                        Text("No active tmux sessions")
+                            .foregroundStyle(.tertiary)
+                            .padding()
+                    }
+                    ForEach(Array(remoteSessions.enumerated()), id: \.element.name) { index, session in
+                        remoteSessionRow(session)
+                        if index < remoteSessions.count - 1 {
+                            Divider().padding(.leading, 34)
+                        }
+                    }
+                }
+            }
+            .frame(height: Self.rowHeight * CGFloat(min(Self.listRowCount, max(3, remoteSessions.count))))
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -813,9 +954,20 @@ struct LauncherView: View {
         opts.model = model.isEmpty ? nil : model
         opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
         opts.dangerouslySkipPermissions = skipPermissions
+        opts.continueSession = continueSession
         opts.verbose = verbose
 
+        RemoteHistory.add(hostId: host.id, directory: remoteDirectory)
+        remoteHistory = RemoteHistory.load()
+
         onLaunch?(URL(fileURLWithPath: remoteDirectory), .remoteNewSession(host, directory: remoteDirectory, opts))
+    }
+
+    private func removeRemoteHistory(_ entry: RemoteHistoryEntry) {
+        RemoteHistory.remove(entry)
+        withAnimation {
+            remoteHistory.removeAll { $0.id == entry.id }
+        }
     }
 
     // MARK: - Actions
