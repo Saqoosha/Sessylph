@@ -5,22 +5,24 @@ English | [日本語](README.ja.md)
 <p align="center">
   <img src="images/appicon.png" width="128" height="128" alt="Sessylph icon">
   <br>
-  A native macOS wrapper for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> with tabbed terminal sessions, tmux persistence, and desktop notifications.
+  A native macOS wrapper for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> and Codex CLI with tabbed terminal sessions, tmux persistence, and desktop notifications.
 </p>
 
 ## Features
 
-- **Tabbed Interface** — Each tab runs an independent Claude Code session using native macOS window tabbing
+- **Tabbed Interface** — Each tab runs an independent Claude Code or Codex session using native macOS window tabbing
 - **tmux Persistence** — Sessions survive app restarts; reconnect to running conversations with scrollback history preserved
-- **Desktop Notifications** — Get notified when Claude Code completes a task or needs your attention
+- **Session History** — Resume recent Claude Code and Codex sessions directly from the launcher
+- **Desktop Notifications** — Get notified when Claude Code completes a task or when Codex hands the turn back to you
 - **Auto-Activate** — Optionally bring the app and tab to front when a task completes
 - **Image Paste** — Paste images directly into the terminal with Cmd+V
-- **Configurable** — Customize model, permission mode, appearance, and behavior via Settings
+- **Configurable** — Customize CLI type, model, approval mode, appearance, and behavior via Settings
 
 ## Requirements
 
 - macOS 15.0 (Sequoia) or later
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed
+- At least one supported CLI installed:
+  [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or Codex CLI
 - [tmux](https://github.com/tmux/tmux) installed
 
 ---
@@ -32,14 +34,14 @@ English | [日本語](README.ja.md)
 ```
 User opens new tab
         ↓
-  LauncherView (pick directory + options)
+  LauncherView (pick CLI + directory + options)
         ↓
   TmuxManager.createAndLaunchSession()  ← single tmux invocation
         ↓
   TerminalViewController (GhosttyKit/Metal attaches to tmux)
 
 Notifications:
-  Claude Code hook → sessylph-notifier CLI
+  Claude Code hook / Codex notify → sessylph-notifier CLI
         ↓
   DistributedNotificationCenter
         ↓
@@ -80,7 +82,7 @@ Sources/
 ├── Sessylph/              # Main app (AppKit + SwiftUI)
 │   ├── App/               # AppDelegate, entry point
 │   ├── Launcher/          # Directory picker + options (SwiftUI)
-│   ├── Models/            # Session, SessionStore, ClaudeCodeOptions
+│   ├── Models/            # Session, LaunchConfig, Claude/Codex options + history
 │   ├── Notifications/     # Hook integration + desktop notifications
 │   ├── Settings/          # Preferences window (SwiftUI)
 │   ├── Tabs/              # TabManager, TabWindowController

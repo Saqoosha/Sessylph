@@ -37,7 +37,7 @@ Internal architecture documentation for developers.
                     ┌───────────┴───────────┐
                     │  tmux server          │
                     │  sessylph-XXXXXXXX    │ ← one session per tab
-                    │  → claude (CLI)       │
+                    │  → selected CLI       │
                     └───────────────────────┘
 ```
 
@@ -47,8 +47,9 @@ Internal architecture documentation for developers.
 Sources/
 ├── Sessylph/
 │   ├── App/              AppDelegate, main, Info.plist
-│   ├── Launcher/         LauncherView (SwiftUI directory picker + options)
-│   ├── Models/           Session, SessionStore, ClaudeCodeOptions
+│   ├── Launcher/         LauncherView (SwiftUI directory picker + CLI options)
+│   ├── Models/           Session, SessionStore, LaunchConfig,
+│   │                     Claude/Codex options, Claude/Codex session history
 │   ├── Notifications/    NotificationManager, HookSettingsGenerator
 │   ├── Resources/        Assets
 │   ├── Settings/         SettingsWindow, GeneralSettingsView, SessionConfigSheet
@@ -56,8 +57,9 @@ Sources/
 │   ├── Terminal/         GhosttyTerminalView, GhosttyApp, GhosttyConfig,
 │   │                     GhosttyInputHandler, TerminalViewController
 │   ├── Tmux/             TmuxManager
-│   └── Utilities/        ClaudeCLI, EnvironmentBuilder, Defaults, ShellQuote,
-│                         ImagePasteHelper, PermissionMode, RecentDirectories
+│   └── Utilities/        ClaudeCLI, CodexCLI, CLIResolver, EnvironmentBuilder,
+│                         Defaults, ShellQuote, ImagePasteHelper, PermissionMode,
+│                         RecentDirectories
 ├── SessylphNotifier/
 │   └── main.swift         Bundled CLI for hook → DistributedNotification bridge
 ghostty/
@@ -73,9 +75,10 @@ Entry point. Responsible for:
   - Standard macOS items: Hide, Hide Others, Show All, Settings
 - DistributedNotificationCenter listener for hook events
 - Notification permission request
-- Auto-activate on task completion (`activateOnStop` preference) — brings app + tab to front
+- Auto-activate on task completion (`activateOnStop` preference) — brings app + tab to front for Claude Code stop events
   - Handles hidden app state (`NSApp.unhide` + delayed activation)
   - Pre-computes `isFrontmost` before state changes to avoid notification suppression race
+- Codex `notify` events are handled as handoff-to-user notifications
 - Orphaned session reattachment on startup (two-phase: windows first, then tmux attach)
 - PTY refresh on app activation (queries tmux window size, only bounces if mismatch)
 - Quit flow with confirmation alerts
@@ -85,6 +88,7 @@ Entry point. Responsible for:
 Central registry of all open `TabWindowController` instances.
 
 - `newTab()` / `newTab(directory:)` — Create launcher or pre-filled tabs
+- `newTab(directory:)` respects the saved default CLI type
 - `reattachOrphanedSessions()` — Restore running tmux sessions on app restart
 - `findController(for:)` — Locate controller by Session ID
 - `bringToFront(sessionId:)` — Navigate to a specific tab (handles hidden app state with unhide + delayed activate)
@@ -96,25 +100,28 @@ Central registry of all open `TabWindowController` instances.
 One per tab. Manages the lifecycle from launcher → terminal.
 
 **Two UI modes:**
-1. **Launcher** — SwiftUI `LauncherView` for directory selection and Claude options
+1. **Launcher** — SwiftUI `LauncherView` for CLI selection, directory selection, and session options
 2. **Terminal** — `TerminalViewController` attached to a tmux session
 
 **Launch flow:**
 ```
-User clicks "Start Claude" in LauncherView
+User clicks "Start <selected CLI>" in LauncherView
   → Button shows spinner, form disabled (immediate feedback)
   → Tab title updated with ⏳ emoji
-  → HookSettingsGenerator.generate(sessionId) → /tmp/.../hooks-{id}.json
-  → ClaudeCodeOptions.buildCommand() → full CLI string
+  → If Claude Code: HookSettingsGenerator.generate(sessionId) → /tmp/.../hooks-{id}.json
+  → If Codex: build notify config inline for `sessylph-notifier`
+  → LaunchConfig builds the full CLI command
   → TmuxManager.createAndLaunchSession()  ← single tmux invocation:
       new-session + set-option×4 + send-keys (was 6 process spawns)
   → Switch to TerminalViewController → attachToTmux()
 ```
 
-**State tracking:** Delegates to `ClaudeStateTracker`, which polls tmux pane title every 1 second and parses Claude Code's status emoji:
+**State tracking:** Claude Code sessions delegate to `ClaudeStateTracker`, which polls tmux pane title every 1 second and parses Claude Code's status emoji:
 - `✳` (U+2733) → idle
 - Braille spinner (U+2800–U+28FF) → working (animated spinner in tab title)
 - `needsAttention` flag → set by notification hooks
+
+Codex sessions currently do not use title-based state parsing, but they do integrate with launcher history and handoff-to-user notifications.
 
 ### ClaudeStateTracker
 
@@ -172,9 +179,17 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 - `title` is computed from `directory.lastPathComponent`
 - `CodingKeys` excludes `isRunning` (transient runtime state)
 
-**ClaudeCodeOptions** (Codable, Sendable)
-- Model selection, permission modes, tool allow/deny lists, session flags, budget, system prompt, MCP configs
-- `buildCommand()` — Constructs the full `claude` CLI invocation
+**ClaudeCodeOptions** / **CodexOptions** (Codable, Sendable)
+- Claude and Codex-specific launcher options
+- `CodexOptions` also supports `resumeSessionId` for launcher history resume
+
+**LaunchConfig**
+- Enum wrapping `.claudeCode(ClaudeCodeOptions)` and `.codex(CodexOptions)`
+- Also builds a default launch configuration from `UserDefaults` for directory-based launches
+
+**ClaudeSessionHistory** / **CodexSessionHistory**
+- Parse recent session metadata from `~/.claude/projects` and `~/.codex`
+- Used by the launcher to provide click-to-resume history for both CLIs
 
 **SessionStore** (@MainActor singleton)
 - Persists `[Session]` to `~/Library/Application Support/sh.saqoo.Sessylph/sessions.json`
@@ -182,17 +197,19 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 ### Notifications
 
 ```
-Claude Code hook fires
+Claude Code hook or Codex notify fires
   → sessylph-notifier {sessionId} {event}    (bundled CLI)
-  → reads stdin (hook context JSON)
+  → reads stdin / argv[3] (hook context JSON)
   → DistributedNotificationCenter.post("sh.saqoo.Sessylph.hookEvent")
 
 AppDelegate listener
   → extracts sessionId, event, message
   → pre-computes isFrontmost before any state changes
-  → "stop" event + activateOnStop preference:
+  → Claude "stop" event + activateOnStop preference:
       → TabManager.bringToFront(sessionId) — activates app/tab
       → 0.5s delayed notification post (avoids macOS swallowing it during activation)
+  → Codex "notify" event:
+      → "Codex Is Ready" notification (handoff to user, no auto-activate)
   → "permission_prompt" → TabWindowController.markNeedsAttention()
   → NotificationManager posts UNUserNotification (if not frontmost)
 
@@ -200,11 +217,11 @@ User clicks notification
   → TabManager.bringToFront(sessionId)
 ```
 
-**HookSettingsGenerator** — Creates per-session JSON config at `/tmp/sh.saqoo.Sessylph/hooks-{id}.json` defining two hooks:
+**HookSettingsGenerator** — Creates per-session JSON config at `/tmp/sh.saqoo.Sessylph/hooks-{id}.json` defining Claude Code hooks:
 1. **Stop hook** — Claude completed a task
 2. **Notification hook** — Claude needs permission
 
-**SessylphNotifier** (separate build target, bundled in .app) — Lightweight CLI that reads stdin and posts a DistributedNotification. Decouples Claude Code hooks from the main app process.
+**SessylphNotifier** (separate build target, bundled in .app) — Lightweight CLI that handles both Claude Code hooks and Codex notify events, then posts a DistributedNotification. Decouples CLI-side notifications from the main app process.
 
 ### Settings & Preferences
 
@@ -217,13 +234,15 @@ User clicks notification
 - Alerts: suppress close/quit confirmations
 - Session state: active session ID, recent directories
 
-**SettingsWindow** — Modal SwiftUI window with `GeneralSettingsView` (model picker, permission mode, notification toggles, font slider, Claude version display).
+**SettingsWindow** — Modal SwiftUI window with `GeneralSettingsView` (launcher defaults, notification toggles, font slider, Claude/Codex version display).
 
 ### Utilities
 
 | Utility | Purpose |
 |---------|---------|
-| `ClaudeCLI` | Resolves `claude` and `tmux` binary paths dynamically |
+| `ClaudeCLI` | Resolves `claude` and discovers Claude Code CLI options |
+| `CodexCLI` | Resolves `codex` and discovers approval modes for the launcher |
+| `CLIResolver` | Shared executable path / version resolution for supported CLIs |
 | `EnvironmentBuilder` | Captures login shell environment (thread-safe with `OSAllocatedUnfairLock`) |
 | `ShellQuote` | Safe shell argument quoting (enum namespace) |
 | `ImagePasteHelper` | Extracts images from pasteboard, saves to temp, returns path |
@@ -233,7 +252,7 @@ User clicks notification
 ## Concurrency Model
 
 - **@MainActor:** AppDelegate, TabManager, TabWindowController, TerminalViewController, SessionStore, NotificationManager, SettingsWindow, ClaudeStateTracker
-- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions
+- **Sendable (nonisolated):** TmuxManager, Session, ClaudeCodeOptions, CodexOptions
 - **Thread safety:** `OSAllocatedUnfairLock` for `EnvironmentBuilder` cache, `DispatchQueue.main.async` for ghostty clipboard callbacks
 - **C interop:** `nonisolated(unsafe)` on ghostty surface property for deinit access
 
