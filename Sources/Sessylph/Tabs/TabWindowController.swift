@@ -191,7 +191,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 let codexPath = try CodexCLI.codexPath()
                 var notifierArgs: [String]? = nil
                 if let notifierPath = HookSettingsGenerator.notifierPath() {
-                    notifierArgs = [notifierPath, session.id.uuidString, "stop"]
+                    notifierArgs = [notifierPath, session.id.uuidString, "notify"]
                 } else {
                     logger.warning("sessylph-notifier not found in bundle — notifications will be disabled")
                 }

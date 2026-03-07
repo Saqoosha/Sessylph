@@ -4,7 +4,7 @@ import Foundation
 /// to the main Sessylph app via DistributedNotificationCenter.
 ///
 /// Usage: sessylph-notifier <sessionId> <event> [json]
-///   event: "stop" | "permission_prompt" | "idle_prompt"
+///   event: "stop" | "notify" | "permission_prompt" | "idle_prompt"
 ///
 /// Called by Claude Code hooks (via --settings) with JSON on stdin,
 /// or by Codex notify hooks with JSON as argv[3].

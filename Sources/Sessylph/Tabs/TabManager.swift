@@ -39,7 +39,7 @@ final class TabManager {
         addToTabGroup(controller, in: existingWindow)
 
         // Auto-launch with the given directory
-        await controller.launchClaude(directory: directory, options: ClaudeCodeOptions())
+        await controller.launchSession(directory: directory, config: LaunchConfig.defaultFromUserDefaults())
     }
 
     private func addToTabGroup(_ controller: TabWindowController, in existingWindow: NSWindow?) {

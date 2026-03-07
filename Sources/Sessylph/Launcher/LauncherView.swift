@@ -391,22 +391,38 @@ struct LauncherView: View {
 
             // Sessions (right)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Sessions")
+                Text("Claude Sessions")
                     .font(.headline)
 
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(filteredSessions.enumerated()), id: \.element.id) { index, session in
-                            sessionRow(session)
-                            if index < filteredSessions.count - 1 {
-                                Divider().padding(.leading, 34)
+                if cliType == .claudeCode {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(filteredSessions.enumerated()), id: \.element.id) { index, session in
+                                sessionRow(session)
+                                if index < filteredSessions.count - 1 {
+                                    Divider().padding(.leading, 34)
+                                }
                             }
                         }
                     }
+                    .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Session resume is available only for Claude Code.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Text("Switch back to Claude Code to resume a previous conversation.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(12)
+                    .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
+                    .background(.regularMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .frame(maxWidth: .infinity)
         }
@@ -518,33 +534,7 @@ struct LauncherView: View {
         isLaunching = true
         RecentDirectories.add(dir)
 
-        let config: LaunchConfig
-        switch cliType {
-        case .claudeCode:
-            var opts = ClaudeCodeOptions()
-            opts.model = model.isEmpty ? nil : model
-            opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
-            opts.dangerouslySkipPermissions = skipPermissions
-            opts.continueSession = continueSession
-            opts.verbose = verbose
-            config = .claudeCode(opts)
-        case .codex:
-            var opts = CodexOptions()
-            opts.model = codexModel.isEmpty ? nil : codexModel
-            switch codexExecutionMode.wrappedValue {
-            case .ask:
-                // Only pass approval mode if it's a valid value
-                let validModes = Set(codexCLIOptions.approvalModes)
-                opts.approvalMode = validModes.contains(codexApprovalMode) ? codexApprovalMode : nil
-            case .fullAuto:
-                opts.fullAuto = true
-            case .yolo:
-                opts.dangerouslyBypassApprovalsAndSandbox = true
-            }
-            config = .codex(opts)
-        }
-
-        onLaunch?(dir, config)
+        onLaunch?(dir, makeLaunchConfig())
     }
 
     private func launchSession(_ session: ClaudeSessionEntry) {
@@ -560,6 +550,33 @@ struct LauncherView: View {
         opts.resumeSessionId = session.id
         opts.verbose = verbose
         onLaunch?(dir, .claudeCode(opts))
+    }
+
+    private func makeLaunchConfig() -> LaunchConfig {
+        switch cliType {
+        case .claudeCode:
+            var opts = ClaudeCodeOptions()
+            opts.model = model.isEmpty ? nil : model
+            opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+            opts.dangerouslySkipPermissions = skipPermissions
+            opts.continueSession = continueSession
+            opts.verbose = verbose
+            return .claudeCode(opts)
+
+        case .codex:
+            var opts = CodexOptions()
+            opts.model = codexModel.isEmpty ? nil : codexModel
+            switch codexExecutionMode.wrappedValue {
+            case .ask:
+                let validModes = Set(codexCLIOptions.approvalModes)
+                opts.approvalMode = validModes.contains(codexApprovalMode) ? codexApprovalMode : nil
+            case .fullAuto:
+                opts.fullAuto = true
+            case .yolo:
+                opts.dangerouslyBypassApprovalsAndSandbox = true
+            }
+            return .codex(opts)
+        }
     }
 
     private func removeRecent(_ dir: URL) {
