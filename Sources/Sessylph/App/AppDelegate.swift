@@ -268,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NotificationManager.shared.postTaskCompleted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
             }
         case "notify":
-            NotificationManager.shared.postIdleReminder(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
+            NotificationManager.shared.postCodexTurnReady(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
         case "permission_prompt":
             controller?.markNeedsAttention()
             NotificationManager.shared.postPermissionRequired(sessionTitle: notificationBody, sessionId: sessionId, message: message ?? "Needs your permission", isFrontmost: isTabVisible)

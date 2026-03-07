@@ -38,6 +38,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(title: "⏳ Waiting for Input", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
     }
 
+    func postCodexTurnReady(sessionTitle: String, sessionId: String, isFrontmost: Bool) {
+        guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
+        post(title: "💬 Codex Is Ready", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
+    }
+
     // MARK: - Private
 
     private func post(title: String, body: String, sessionId: String, isFrontmost: Bool) {
