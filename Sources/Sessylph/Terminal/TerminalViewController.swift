@@ -108,9 +108,10 @@ final class TerminalViewController: NSViewController {
     func startTmuxAttach() {
         let command: String
         if let remoteHost = session.remoteHost {
-            // Remote: ssh -t [sshArgs] tmux attach-session -t =sessionName
+            // Remote: ssh -t [sshArgs] tmux attach-session -t sessionName
+            // Note: `=` prefix for exact-match is not supported over SSH
             let sshArgs = remoteHost.sshArgs.map { shellQuote($0) }.joined(separator: " ")
-            let quotedSession = shellQuote("=\(session.tmuxSessionName)")
+            let quotedSession = shellQuote(session.tmuxSessionName)
             command = "/usr/bin/ssh -t \(sshArgs) tmux attach-session -t \(quotedSession)"
         } else {
             // Local: tmux attach-session -t =sessionName

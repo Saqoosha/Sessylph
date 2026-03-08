@@ -229,10 +229,11 @@ final class TmuxManager: Sendable {
                 .components(separatedBy: "\n")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
-                .map { line in
+                .compactMap { line -> (name: String, windows: Int, created: String)? in
                     let parts = line.components(separatedBy: "\t")
+                    guard let name = parts.first, !name.isEmpty else { return nil }
                     return (
-                        name: parts[0],
+                        name: name,
                         windows: parts.count > 1 ? (Int(parts[1]) ?? 1) : 1,
                         created: parts.count > 2 ? parts[2] : ""
                     )

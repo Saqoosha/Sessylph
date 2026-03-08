@@ -104,9 +104,12 @@ final class TabManager {
             orphans.append(session)
         }
 
-        // Configure all sessions in one batch (best-effort)
-        for session in orphans {
-            await TmuxManager.shared.configureSession(name: session.tmuxSessionName, remoteHost: session.remoteHost)
+        // Configure local sessions in one batch (best-effort).
+        // Remote sessions are skipped here to avoid blocking app launch
+        // if the host is unreachable (SSH timeout ~80s per session).
+        // Remote sessions will be configured when the tab attaches.
+        for session in orphans where !session.isRemote {
+            await TmuxManager.shared.configureSession(name: session.tmuxSessionName, remoteHost: nil)
         }
 
         // Phase 1: Create all windows and position them in the tab group.

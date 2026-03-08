@@ -66,8 +66,16 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     /// Starts the tmux attach-session process.
     /// Call after the window has been added to the tab group and laid out.
+    /// For remote sessions, configures the tmux session first (best-effort).
     func attachToTmux() {
-        terminalVC?.startTmuxAttach()
+        if session.isRemote {
+            Task {
+                await TmuxManager.shared.configureSession(name: session.tmuxSessionName, remoteHost: session.remoteHost)
+                terminalVC?.startTmuxAttach()
+            }
+        } else {
+            terminalVC?.startTmuxAttach()
+        }
     }
 
     private func restoreWindowFrame() {
@@ -207,6 +215,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             case .remoteAttach(_, _):
                 // No session creation needed — just attach to existing
                 session.isRunning = true
+                session.isAttachOnly = true
                 SessionStore.shared.add(session)
 
                 // Configure the remote session for title passthrough
@@ -434,12 +443,15 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         if session.isRunning && !TabManager.shared.isTerminating {
             let sessionName = session.tmuxSessionName
             let remoteHost = session.remoteHost
+            let attachOnly = session.isAttachOnly
             session.isRunning = false
-            Task {
-                do {
-                    try await TmuxManager.shared.killSession(name: sessionName, remoteHost: remoteHost)
-                } catch {
-                    logger.warning("Failed to kill tmux session \(sessionName): \(error.localizedDescription)")
+            if !attachOnly {
+                Task {
+                    do {
+                        try await TmuxManager.shared.killSession(name: sessionName, remoteHost: remoteHost)
+                    } catch {
+                        logger.warning("Failed to kill tmux session \(sessionName): \(error.localizedDescription)")
+                    }
                 }
             }
         }
