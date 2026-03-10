@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum CodexExecutionMode: String, CaseIterable {
     case ask
@@ -63,6 +64,7 @@ struct LauncherView: View {
     @State private var ccSessions: [ClaudeSessionEntry] = []
     @State private var codexSessions: [CodexSessionEntry] = []
     @State private var hoveredSessionId: String?
+    @State private var isDropTargeted = false
 
     // Remote session support
     @State private var connectionMode: ConnectionMode = .local
@@ -341,6 +343,24 @@ struct LauncherView: View {
             .padding(12)
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .opacity(isDropTargeted ? 1 : 0)
+            )
+            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+                guard let provider = providers.first else { return false }
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    var isDir: ObjCBool = false
+                    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
+                          isDir.boolValue else { return }
+                    DispatchQueue.main.async {
+                        selectedDirectory = url
+                    }
+                }
+                return true
+            }
         }
     }
 
