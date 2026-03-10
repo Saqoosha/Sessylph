@@ -6,7 +6,7 @@ macOS native app wrapping Claude Code and Codex CLI with tabs, tmux session mana
 ## Tech Stack
 - macOS 15.0+ (Sequoia), Swift 6
 - AppKit-primary + SwiftUI for settings/dialogs
-- GhosttyKit (libghostty) for Metal-accelerated terminal rendering
+- GhosttyKit (libghostty v1.3.0) for Metal-accelerated terminal rendering
 - tmux for session management (enables remote SSH access)
 - xcodegen for project generation from `project.yml`
 
