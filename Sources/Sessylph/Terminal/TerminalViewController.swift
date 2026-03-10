@@ -177,8 +177,4 @@ final class TerminalViewController: NSViewController {
         ghosttyView.feedText("\r\n\u{1b}[1;31m[Error]\u{1b}[0m \(message)\r\n")
     }
 
-    /// Feeds a visible info message into the terminal view.
-    func feedInfo(_ message: String) {
-        ghosttyView.feedText("\r\n\u{1b}[2m\(message)\u{1b}[0m\r\n")
-    }
 }

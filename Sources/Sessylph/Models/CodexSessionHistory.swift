@@ -59,6 +59,7 @@ actor CodexSessionHistory {
             return []
         }
 
+        let formatters = makeISO8601Formatters()
         var sessions: [IndexedSession] = []
         sessions.reserveCapacity(maxSessionsToParse)
 
@@ -69,7 +70,7 @@ actor CodexSessionHistory {
                   let threadName = object["thread_name"] as? String
             else { continue }
 
-            let updatedAt = parseISO8601(object["updated_at"] as? String) ?? .distantPast
+            let updatedAt = parseISO8601(object["updated_at"] as? String, fractional: formatters.fractional, standard: formatters.standard) ?? .distantPast
             sessions.append(
                 IndexedSession(
                     id: id,
@@ -162,14 +163,15 @@ actor CodexSessionHistory {
         return firstLine.count > 100 ? String(firstLine.prefix(100)) + "..." : firstLine
     }
 
-    private static func parseISO8601(_ value: String?) -> Date? {
+    private static func makeISO8601Formatters() -> (fractional: ISO8601DateFormatter, standard: ISO8601DateFormatter) {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return (fractional, ISO8601DateFormatter())
+    }
+
+    private static func parseISO8601(_ value: String?, fractional: ISO8601DateFormatter, standard: ISO8601DateFormatter) -> Date? {
         guard let value else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
-            return date
-        }
-        return ISO8601DateFormatter().date(from: value)
+        return fractional.date(from: value) ?? standard.date(from: value)
     }
 }
 

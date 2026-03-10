@@ -54,14 +54,11 @@ final class RemoteHostStore: ObservableObject {
             hosts = []
             return
         }
-        guard FileManager.default.fileExists(atPath: storageURL.path) else {
-            hosts = []
-            return
-        }
-
         do {
             let data = try Data(contentsOf: storageURL)
             hosts = try JSONDecoder().decode([RemoteHost].self, from: data)
+        } catch CocoaError.fileReadNoSuchFile {
+            hosts = []
         } catch {
             logger.error("Failed to load remote hosts: \(error.localizedDescription)")
             hosts = []

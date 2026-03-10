@@ -36,9 +36,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("Sessylph launched")
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {
-    }
-
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             TabManager.shared.newTab()
@@ -180,8 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openFolder(_ sender: Any?) {
-        // Open Folder also opens a new launcher tab — user picks folder there
-        TabManager.shared.newTab(in: NSApp.keyWindow)
+        newTab(sender)
     }
 
     @objc private func closeTab(_ sender: Any?) {

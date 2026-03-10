@@ -223,10 +223,6 @@ struct RemoteDirectoryBrowser: View {
         return .success((resolvedPath, items))
     }
 
-    private func shellEscape(_ string: String) -> String {
-        "'" + string.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
-
     private func runSSH(args: [String]) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {

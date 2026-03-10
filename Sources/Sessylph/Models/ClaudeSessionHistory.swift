@@ -33,6 +33,7 @@ actor ClaudeSessionHistory {
     // MARK: - Parsing (runs on caller's executor, but called from actor)
 
     private static func parseSessions() async -> [ClaudeSessionEntry] {
+        let dateFormatter = ISO8601DateFormatter()
         let fm = FileManager.default
         let projectsDir = NSHomeDirectory() + "/.claude/projects"
 
@@ -76,7 +77,8 @@ actor ClaudeSessionHistory {
                 path: candidate.path,
                 sessionId: candidate.sessionId,
                 projectEncoded: candidate.projectEncoded,
-                fallbackDate: candidate.modDate
+                fallbackDate: candidate.modDate,
+                dateFormatter: dateFormatter
             ) else { continue }
             entries.append(entry)
         }
@@ -89,7 +91,8 @@ actor ClaudeSessionHistory {
         path: String,
         sessionId: String,
         projectEncoded: String,
-        fallbackDate: Date
+        fallbackDate: Date,
+        dateFormatter: ISO8601DateFormatter
     ) -> ClaudeSessionEntry? {
         // Read only the first ~8KB to find the first user message
         guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
@@ -141,7 +144,7 @@ actor ClaudeSessionHistory {
             // Parse timestamp
             let timestamp: Date
             if let ts = json["timestamp"] as? String {
-                timestamp = ISO8601DateFormatter().date(from: ts) ?? fallbackDate
+                timestamp = dateFormatter.date(from: ts) ?? fallbackDate
             } else {
                 timestamp = fallbackDate
             }

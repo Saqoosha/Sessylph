@@ -27,6 +27,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         isRunning: { [weak self] in self?.session.isRunning ?? false }
     )
     private static let claudeOrange = NSColor(srgbRed: 0xD9/255.0, green: 0x78/255.0, blue: 0x58/255.0, alpha: 1.0)
+    private static let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .bold)
 
     private static let defaultSize = NSSize(width: 900, height: 600)
 
@@ -354,9 +355,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let dirName = session.title
         let rest = lastTaskDescription.isEmpty ? dirName : "\(dirName) — \(lastTaskDescription)"
 
-        let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .bold)
         let attributed = NSMutableAttributedString()
-        var iconAttrs: [NSAttributedString.Key: Any] = [.font: monoFont]
+        var iconAttrs: [NSAttributedString.Key: Any] = [.font: Self.monoFont]
         if stateTracker.isSpinning {
             iconAttrs[.foregroundColor] = Self.claudeOrange
         }
