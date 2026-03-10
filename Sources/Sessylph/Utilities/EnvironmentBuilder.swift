@@ -105,7 +105,11 @@ enum EnvironmentBuilder {
                 if let output = String(data: data, encoding: .utf8) {
                     computed = output
                         .components(separatedBy: "\n")
-                        .filter { $0.contains("=") && !$0.isEmpty }
+                        .filter { line in
+                            guard !line.isEmpty, line.contains("=") else { return false }
+                            guard let key = line.split(separator: "=", maxSplits: 1).first else { return false }
+                            return !filteredKeys.contains(String(key))
+                        }
                 } else {
                     logger.warning("Failed to decode login shell output. Using process environment as fallback.")
                     computed = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }

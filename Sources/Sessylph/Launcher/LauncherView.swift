@@ -150,8 +150,14 @@ struct LauncherView: View {
         .onAppear {
             recentDirectories = RecentDirectories.load()
             remoteHistory = RemoteHistory.load()
-            cliOptions = ClaudeCLI.discoverCLIOptions()
-            codexCLIOptions = CodexCLI.discoverCLIOptions()
+            Task.detached {
+                let claude = ClaudeCLI.discoverCLIOptions()
+                let codex = CodexCLI.discoverCLIOptions()
+                await MainActor.run {
+                    cliOptions = claude
+                    codexCLIOptions = codex
+                }
+            }
             Task {
                 async let claudeSessions = ClaudeSessionHistory.shared.loadSessions()
                 async let codexSessions = CodexSessionHistory.shared.loadSessions()
@@ -544,66 +550,44 @@ struct LauncherView: View {
     }()
 
     private func sessionRow(_ session: ClaudeSessionEntry) -> some View {
-        let isHovered = hoveredSessionId == session.id
-        return Button {
-            launchSession(session)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "text.bubble")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-                    .frame(width: 16)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(session.title)
-                        .font(.callout.weight(.medium))
-                        .lineLimit(1)
-                    HStack(spacing: 6) {
-                        Text(session.projectName)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("\u{00B7}")
-                            .font(.caption2)
-                            .foregroundStyle(.quaternary)
-                        Text(Self.sessionDateFormatter.string(from: session.timestamp))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered in
-            hoveredSessionId = hovered ? session.id : nil
-        }
+        sessionRowContent(
+            id: session.id, icon: "text.bubble",
+            title: session.title, projectName: session.projectName,
+            timestamp: session.timestamp
+        ) { launchSession(session) }
     }
 
     private func codexSessionRow(_ session: CodexSessionEntry) -> some View {
-        let isHovered = hoveredSessionId == session.id
-        return Button {
-            launchCodexSession(session)
-        } label: {
+        sessionRowContent(
+            id: session.id, icon: "terminal",
+            title: session.title, projectName: session.projectName,
+            timestamp: session.timestamp
+        ) { launchCodexSession(session) }
+    }
+
+    private func sessionRowContent(
+        id: String, icon: String, title: String, projectName: String,
+        timestamp: Date, action: @escaping () -> Void
+    ) -> some View {
+        let isHovered = hoveredSessionId == id
+        return Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: "terminal")
+                Image(systemName: icon)
                     .foregroundStyle(.secondary)
                     .font(.callout)
                     .frame(width: 16)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.title)
+                    Text(title)
                         .font(.callout.weight(.medium))
                         .lineLimit(1)
                     HStack(spacing: 6) {
-                        Text(session.projectName)
+                        Text(projectName)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text("\u{00B7}")
                             .font(.caption2)
                             .foregroundStyle(.quaternary)
-                        Text(Self.sessionDateFormatter.string(from: session.timestamp))
+                        Text(Self.sessionDateFormatter.string(from: timestamp))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -617,7 +601,7 @@ struct LauncherView: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered in
-            hoveredSessionId = hovered ? session.id : nil
+            hoveredSessionId = hovered ? id : nil
         }
     }
 
@@ -725,28 +709,7 @@ struct LauncherView: View {
                 .font(.headline)
 
             if !remoteHistory.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.tertiary)
-                        .font(.callout)
-                    TextField("Filter...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.callout)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.tertiary)
-                                .font(.callout)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                searchField
             }
 
             ScrollView {
@@ -823,10 +786,14 @@ struct LauncherView: View {
         }
     }
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
     private static func relativeDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     // MARK: - Remote Sessions
@@ -950,12 +917,7 @@ struct LauncherView: View {
               !isLaunching else { return }
         isLaunching = true
 
-        var opts = ClaudeCodeOptions()
-        opts.model = model.isEmpty ? nil : model
-        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
-        opts.dangerouslySkipPermissions = skipPermissions
-        opts.continueSession = continueSession
-        opts.verbose = verbose
+        let opts = makeClaudeCodeOptions()
 
         RemoteHistory.add(hostId: host.id, directory: remoteDirectory)
         remoteHistory = RemoteHistory.load()
@@ -986,12 +948,8 @@ struct LauncherView: View {
         selectedDirectory = dir
         isLaunching = true
         RecentDirectories.add(dir)
-        var opts = ClaudeCodeOptions()
-        opts.model = model.isEmpty ? nil : model
-        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
-        opts.dangerouslySkipPermissions = skipPermissions
+        var opts = makeClaudeCodeOptions(continueSession: false)
         opts.resumeSessionId = session.id
-        opts.verbose = verbose
         onLaunch?(dir, .claudeCode(opts))
     }
 
@@ -1006,17 +964,20 @@ struct LauncherView: View {
         onLaunch?(dir, .codex(opts))
     }
 
+    private func makeClaudeCodeOptions(continueSession: Bool? = nil) -> ClaudeCodeOptions {
+        var opts = ClaudeCodeOptions()
+        opts.model = model.isEmpty ? nil : model
+        opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+        opts.dangerouslySkipPermissions = skipPermissions
+        opts.continueSession = continueSession ?? self.continueSession
+        opts.verbose = verbose
+        return opts
+    }
+
     private func makeLaunchConfig() -> LaunchConfig {
         switch cliType {
         case .claudeCode:
-            var opts = ClaudeCodeOptions()
-            opts.model = model.isEmpty ? nil : model
-            opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
-            opts.dangerouslySkipPermissions = skipPermissions
-            opts.continueSession = continueSession
-            opts.verbose = verbose
-            return .claudeCode(opts)
-
+            return .claudeCode(makeClaudeCodeOptions())
         case .codex:
             return .codex(makeCodexOptions())
         }

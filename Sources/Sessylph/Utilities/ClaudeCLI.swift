@@ -1,9 +1,18 @@
 import Foundation
+import os
 
 enum ClaudeCLI {
-    /// Resolves the path to the `claude` executable.
+    private struct PathCache {
+        var claude: String?
+        var tmux: String?
+    }
+
+    private static let pathCache = OSAllocatedUnfairLock(initialState: PathCache())
+
+    /// Resolves the path to the `claude` executable. Result is cached.
     static func claudePath() throws -> String {
-        try CLIResolver.resolve(
+        if let cached = pathCache.withLock({ $0.claude }) { return cached }
+        let path = try CLIResolver.resolve(
             name: "claude",
             knownPaths: [
                 "\(NSHomeDirectory())/.local/bin/claude",
@@ -11,11 +20,14 @@ enum ClaudeCLI {
                 "/opt/homebrew/bin/claude",
             ]
         )
+        pathCache.withLock { $0.claude = path }
+        return path
     }
 
-    /// Resolves the path to the `tmux` executable.
+    /// Resolves the path to the `tmux` executable. Result is cached.
     static func tmuxPath() throws -> String {
-        try CLIResolver.resolve(
+        if let cached = pathCache.withLock({ $0.tmux }) { return cached }
+        let path = try CLIResolver.resolve(
             name: "tmux",
             knownPaths: [
                 "/opt/homebrew/bin/tmux",
@@ -23,6 +35,8 @@ enum ClaudeCLI {
                 "/usr/bin/tmux",
             ]
         )
+        pathCache.withLock { $0.tmux = path }
+        return path
     }
 
     /// Returns the Claude Code version string, or nil if not available.

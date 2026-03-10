@@ -260,22 +260,6 @@ final class TmuxManager: Sendable {
         }
     }
 
-    /// Returns the tmux window dimensions (cols, rows) for the given session.
-    func getWindowSize(sessionName: String, remoteHost: RemoteHost? = nil) async -> (cols: Int, rows: Int)? {
-        do {
-            let target = remoteHost != nil ? sessionName : "=\(sessionName)"
-            let output = try await runTmux(args: [
-                "display-message", "-t", target, "-p", "#{window_width},#{window_height}",
-            ], remoteHost: remoteHost)
-            let parts = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ",")
-            guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return nil }
-            return (w, h)
-        } catch {
-            logger.debug("Failed to get window size for \(sessionName): \(error.localizedDescription)")
-            return nil
-        }
-    }
-
     /// Returns the current working directory of the active pane.
     func getPaneCurrentPath(sessionName: String, remoteHost: RemoteHost? = nil) async -> String? {
         do {
@@ -287,27 +271,6 @@ final class TmuxManager: Sendable {
             return path.isEmpty ? nil : path
         } catch {
             logger.debug("Failed to get pane path for \(sessionName): \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    /// Captures pane content (scrollback history + visible viewport) with ANSI color escapes.
-    /// Includes the visible viewport so that sessions with no scrollback history still
-    /// get their viewport content preloaded into xterm.js scrollback buffer.
-    /// Returns nil if capture fails or content is empty.
-    func captureHistory(sessionName: String, lines: Int = 1000, remoteHost: RemoteHost? = nil) async -> String? {
-        do {
-            let output = try await runTmux(args: [
-                "capture-pane", "-t", "\(sessionName)", "-p", "-e", "-J",
-                "-S", "-\(lines)",
-            ], remoteHost: remoteHost)
-            // Strip trailing blank lines from viewport padding
-            let trimmed = output.replacingOccurrences(
-                of: "\\n+$", with: "", options: .regularExpression
-            )
-            return trimmed.isEmpty ? nil : trimmed
-        } catch {
-            logger.debug("Failed to capture history for \(sessionName): \(error.localizedDescription)")
             return nil
         }
     }

@@ -5,8 +5,6 @@ enum Defaults {
     static let defaultCLIType = "defaultCLIType"
     static let defaultModel = "defaultModel"
     static let defaultPermissionMode = "defaultPermissionMode"
-    static let claudePathOverride = "claudePathOverride"
-    static let tmuxPathOverride = "tmuxPathOverride"
 
     // MARK: - Codex
     static let codexModel = "codexModel"
@@ -25,8 +23,6 @@ enum Defaults {
     static let activateOnStop = "activateOnStop"
 
     // MARK: - Launcher Options
-    static let launcherModel = "launcherModel"
-    static let launcherPermissionMode = "launcherPermissionMode"
     static let launcherSkipPermissions = "launcherSkipPermissions"
     static let launcherContinueSession = "launcherContinueSession"
     static let launcherVerbose = "launcherVerbose"
@@ -36,7 +32,6 @@ enum Defaults {
     static let suppressQuitAlert = "suppressQuitAlert"
 
     // MARK: - Sessions
-    static let savedSessions = "savedSessions"
     static let recentDirectories = "recentDirectories"
     static let activeSessionId = "activeSessionId"
 

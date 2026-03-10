@@ -57,17 +57,14 @@ final class SessionStore: ObservableObject {
             sessions = []
             return
         }
-        guard FileManager.default.fileExists(atPath: storageURL.path) else {
-            sessions = []
-            return
-        }
-
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
         do {
             let data = try Data(contentsOf: storageURL)
             sessions = try decoder.decode([Session].self, from: data)
+        } catch CocoaError.fileReadNoSuchFile {
+            sessions = []
         } catch {
             logger.error("Failed to load sessions: \(error.localizedDescription)")
             sessions = []
