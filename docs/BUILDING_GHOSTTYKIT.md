@@ -2,7 +2,7 @@
 
 Sessylph uses [GhosttyKit](https://github.com/ghostty-org/ghostty) (libghostty) as a static library for Metal-accelerated terminal rendering. This document describes how to build `libghostty.a` and `ghostty.h` from source.
 
-> **Important:** Sessylph uses the **tip (main branch)** of Ghostty, not a stable release. The embedding API used by Sessylph includes features not yet available in release versions (e.g., `ghostty_config_load_file`, `GHOSTTY_SURFACE_CONTEXT_TAB`). Using a release tarball (1.2.x) will result in compilation errors due to API mismatches.
+> **Current version:** Sessylph uses **Ghostty v1.3.0** (released 2026-03-09). When upgrading, clone with `--branch v1.3.0` (or the desired tag) instead of using the tip of main.
 
 > **Note:** libghostty is not a stable public API. Ghostty's author (Mitchell Hashimoto) has stated it is "not stable for general purpose use." Expect breaking changes when updating.
 
@@ -34,11 +34,11 @@ brew install gettext
 
 ## Build Steps
 
-### 1. Clone Ghostty (tip)
+### 1. Clone Ghostty
 
 ```bash
-# Shallow clone is sufficient (saves bandwidth):
-git clone --depth 1 https://github.com/ghostty-org/ghostty.git
+# Shallow clone of the specific release tag:
+git clone --depth 1 --branch v1.3.0 https://github.com/ghostty-org/ghostty.git
 cd ghostty
 ```
 

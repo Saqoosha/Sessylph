@@ -463,6 +463,12 @@ typedef struct {
 
 // Config types
 
+// config.Path
+typedef struct {
+  const char* path;
+  bool optional;
+} ghostty_config_path_s;
+
 // config.Color
 typedef struct {
   uint8_t r;
@@ -508,6 +514,15 @@ typedef struct {
   ghostty_quick_terminal_size_s primary;
   ghostty_quick_terminal_size_s secondary;
 } ghostty_config_quick_terminal_size_s;
+
+// config.Fullscreen
+typedef enum {
+  GHOSTTY_CONFIG_FULLSCREEN_FALSE,
+  GHOSTTY_CONFIG_FULLSCREEN_TRUE,
+  GHOSTTY_CONFIG_FULLSCREEN_NON_NATIVE,
+  GHOSTTY_CONFIG_FULLSCREEN_NON_NATIVE_VISIBLE_MENU,
+  GHOSTTY_CONFIG_FULLSCREEN_NON_NATIVE_PADDED_NOTCH,
+} ghostty_config_fullscreen_e;
 
 // apprt.Target.Key
 typedef enum {
@@ -577,9 +592,9 @@ typedef enum {
 // apprt.action.Fullscreen
 typedef enum {
   GHOSTTY_FULLSCREEN_NATIVE,
-  GHOSTTY_FULLSCREEN_NON_NATIVE,
-  GHOSTTY_FULLSCREEN_NON_NATIVE_VISIBLE_MENU,
-  GHOSTTY_FULLSCREEN_NON_NATIVE_PADDED_NOTCH,
+  GHOSTTY_FULLSCREEN_MACOS_NON_NATIVE,
+  GHOSTTY_FULLSCREEN_MACOS_NON_NATIVE_VISIBLE_MENU,
+  GHOSTTY_FULLSCREEN_MACOS_NON_NATIVE_PADDED_NOTCH,
 } ghostty_action_fullscreen_e;
 
 // apprt.action.FloatWindow
@@ -709,7 +724,7 @@ typedef struct {
 
 // renderer.Health
 typedef enum {
-  GHOSTTY_RENDERER_HEALTH_OK,
+  GHOSTTY_RENDERER_HEALTH_HEALTHY,
   GHOSTTY_RENDERER_HEALTH_UNHEALTHY,
 } ghostty_action_renderer_health_e;
 
@@ -904,6 +919,7 @@ typedef enum {
   GHOSTTY_ACTION_SEARCH_TOTAL,
   GHOSTTY_ACTION_SEARCH_SELECTED,
   GHOSTTY_ACTION_READONLY,
+  GHOSTTY_ACTION_COPY_TITLE_TO_CLIPBOARD,
 } ghostty_action_tag_e;
 
 typedef union {
