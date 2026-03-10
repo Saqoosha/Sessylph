@@ -52,7 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let runningCount = TabManager.shared.windowControllers.filter({ $0.session.isRunning }).count
 
-        if runningCount == 0 || UserDefaults.standard.bool(forKey: Defaults.suppressQuitAlert) {
+        // Skip quit confirmation during Sparkle update — blocking here prevents relaunch
+        if runningCount == 0 || UserDefaults.standard.bool(forKey: Defaults.suppressQuitAlert)
+            || updaterController.updater.sessionInProgress
+        {
             TabManager.shared.isTerminating = true
             SessionStore.shared.save()
             return .terminateNow
