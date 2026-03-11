@@ -9,9 +9,6 @@ struct Session: Identifiable, Codable, Sendable {
     var remoteHost: RemoteHost?
     var tmuxSessionName: String
     var isRunning: Bool = false
-    /// When true, the session was attached to an existing remote tmux session
-    /// and should only detach (not kill) on close.
-    var isAttachOnly: Bool = false
     var createdAt: Date
 
     var isRemote: Bool { remoteHost != nil }

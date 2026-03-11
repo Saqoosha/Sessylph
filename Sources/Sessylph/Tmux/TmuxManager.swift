@@ -173,7 +173,7 @@ final class TmuxManager: Sendable {
         guard oldName != newName else { return true }
         do {
             _ = try await runTmux(args: [
-                "rename-session", "-t", "=\(oldName)", newName,
+                "rename-session", "-t", remoteHost != nil ? oldName : "=\(oldName)", newName,
             ], remoteHost: remoteHost)
             return true
         } catch {
@@ -182,11 +182,26 @@ final class TmuxManager: Sendable {
         }
     }
 
+    /// Returns the number of clients attached to a session, or `nil` on error.
+    func clientCount(name: String, remoteHost: RemoteHost? = nil) async -> Int? {
+        let target = remoteHost != nil ? name : "=\(name)"
+        do {
+            let output = try await runTmux(args: [
+                "list-clients", "-t", target, "-F", "#{client_name}",
+            ], remoteHost: remoteHost)
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? 0 : trimmed.split(separator: "\n").count
+        } catch {
+            return nil
+        }
+    }
+
     /// Kills a session.
     /// `tmux kill-session -t {name}`
     func killSession(name: String, remoteHost: RemoteHost? = nil) async throws {
+        let target = remoteHost != nil ? name : "=\(name)"
         _ = try await runTmux(args: [
-            "kill-session", "-t", "=\(name)",
+            "kill-session", "-t", target,
         ], remoteHost: remoteHost)
     }
 
@@ -194,7 +209,8 @@ final class TmuxManager: Sendable {
     /// `tmux has-session -t {name}`
     func sessionExists(name: String, remoteHost: RemoteHost? = nil) async -> Bool {
         do {
-            _ = try await runTmux(args: ["has-session", "-t", "=\(name)"], remoteHost: remoteHost)
+            let target = remoteHost != nil ? name : "=\(name)"
+            _ = try await runTmux(args: ["has-session", "-t", target], remoteHost: remoteHost)
             return true
         } catch {
             logger.debug("Session \(name) does not exist (or tmux error): \(error.localizedDescription)")

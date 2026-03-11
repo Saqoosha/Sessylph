@@ -216,7 +216,6 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             case .remoteAttach(_, _):
                 // No session creation needed — just attach to existing
                 session.isRunning = true
-                session.isAttachOnly = true
 
                 // Query actual working directory from the remote pane
                 let panePath = await TmuxManager.shared.getPaneCurrentPath(
@@ -454,15 +453,24 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         if session.isRunning && !TabManager.shared.isTerminating {
             let sessionName = session.tmuxSessionName
             let remoteHost = session.remoteHost
-            let attachOnly = session.isAttachOnly
             session.isRunning = false
-            if !attachOnly {
-                Task {
-                    do {
-                        try await TmuxManager.shared.killSession(name: sessionName, remoteHost: remoteHost)
-                    } catch {
-                        logger.warning("Failed to kill tmux session \(sessionName): \(error.localizedDescription)")
-                    }
+            Task {
+                // Brief delay to let tmux detect our client's PTY close.
+                try? await Task.sleep(for: .milliseconds(200))
+                // If no other clients remain, no one is using this session — kill it.
+                // nil means we couldn't check (e.g. SSH error) — err on the side of keeping it.
+                guard let clients = await TmuxManager.shared.clientCount(name: sessionName, remoteHost: remoteHost) else {
+                    logger.info("Could not check clients for \(sessionName), leaving alive")
+                    return
+                }
+                guard clients == 0 else {
+                    logger.info("Tmux session \(sessionName) still has \(clients) client(s), leaving alive")
+                    return
+                }
+                do {
+                    try await TmuxManager.shared.killSession(name: sessionName, remoteHost: remoteHost)
+                } catch {
+                    logger.warning("Failed to kill tmux session \(sessionName): \(error.localizedDescription)")
                 }
             }
         }
