@@ -217,6 +217,15 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 // No session creation needed — just attach to existing
                 session.isRunning = true
                 session.isAttachOnly = true
+
+                // Query actual working directory from the remote pane
+                let panePath = await TmuxManager.shared.getPaneCurrentPath(
+                    sessionName: session.tmuxSessionName, remoteHost: session.remoteHost
+                )
+                if let panePath {
+                    session.directory = URL(fileURLWithPath: panePath)
+                }
+
                 SessionStore.shared.add(session)
 
                 // Configure the remote session for title passthrough
@@ -227,7 +236,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 stateTracker.updateRemoteHost(session.remoteHost)
                 applyTitles(icon: ClaudeState.idle.icon)
                 showTerminal()
-                attachToTmux()
+                // configureSession already called above — start attach directly
+                // (attachToTmux() would call configureSession again in a Task)
+                terminalVC?.startTmuxAttach()
                 stateTracker.startTitlePolling()
                 terminalVC?.focusTerminal()
 
