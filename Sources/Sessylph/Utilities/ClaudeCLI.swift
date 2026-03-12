@@ -55,7 +55,7 @@ enum ClaudeCLI {
     private static let knownModelAliases = ["sonnet", "opus", "haiku", "sonnet[1m]", "opusplan"]
 
     /// Known permission modes as fallback when parsing fails.
-    private static let knownPermissionModes = ["default", "plan", "acceptEdits", "delegate", "dontAsk", "bypassPermissions"]
+    private static let knownPermissionModes = ["default", "plan", "auto", "acceptEdits", "dontAsk", "bypassPermissions"]
 
     /// Parses `claude --help` to discover available permission modes and model aliases.
     static func discoverCLIOptions() -> CLIOptions {

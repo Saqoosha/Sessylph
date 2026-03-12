@@ -5,8 +5,8 @@ enum PermissionMode {
         case "default": "Default"
         case "plan": "Plan"
         case "acceptEdits": "Accept Edits"
-        case "delegate": "Delegate"
         case "dontAsk": "Don't Ask"
+        case "auto": "Auto"
         case "bypassPermissions": "Bypass Permissions"
         default: mode
         }
