@@ -52,18 +52,20 @@ Sources/
 │   │                     RemoteDirectoryBrowser, ComboBox
 │   ├── Models/           Session, SessionStore, LaunchConfig,
 │   │                     Claude/Codex options, Claude/Codex session history,
-│   │                     RemoteHost, RemoteHostStore, RemoteHistory
+│   │                     RemoteHost, RemoteHostStore, RemoteHistory,
+│   │                     SlashCommand
 │   ├── Notifications/    NotificationManager, HookSettingsGenerator
 │   ├── Resources/        Assets
 │   ├── Settings/         SettingsWindow (NSToolbar), GeneralSettingsView,
 │   │                     RemoteHostsSettingsView, SessionConfigSheet
 │   ├── Tabs/             TabManager, TabWindowController, ClaudeStateTracker
 │   ├── Terminal/         GhosttyTerminalView, GhosttyApp, GhosttyConfig,
-│   │                     GhosttyInputHandler, TerminalViewController
+│   │                     GhosttyInputHandler, TerminalViewController,
+│   │                     CommandStripView, CommandListPopover
 │   ├── Tmux/             TmuxManager
 │   └── Utilities/        ClaudeCLI, CodexCLI, CLIResolver, EnvironmentBuilder,
 │                         Defaults, ShellQuote, ImagePasteHelper, PermissionMode,
-│                         RecentDirectories
+│                         RecentDirectories, SlashCommandStore
 ├── SessylphNotifier/
 │   └── main.swift         Bundled CLI for hook → DistributedNotification bridge
 ghostty/
@@ -151,9 +153,32 @@ Extracted from TabWindowController. Encapsulates:
 
 ### TerminalViewController
 
-Hosts a `GhosttyTerminalView` (Metal-rendered NSView), attaching to tmux via a PTY process running `tmux attach-session -t {name}`. For remote sessions, the command is `ssh -t <host> tmux attach-session -t <name>`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
+Hosts a `GhosttyTerminalView` (Metal-rendered NSView) and a `CommandStripView` (bottom bar), attaching to tmux via a PTY process running `tmux attach-session -t {name}`. For remote sessions, the command is `ssh -t <host> tmux attach-session -t <name>`. Tmux attachment is deferred (not in `viewDidLoad`) — the parent calls `startTmuxAttach()` explicitly after the window is positioned, preventing buffer jumps from intermediate resizes.
+
+**Layout:** GhosttyTerminalView fills top to CommandStripView.top; CommandStripView is pinned to bottom (30px height).
 
 **Working directory isolation:** The ghostty surface uses `/tmp` as its working directory (not the project directory) to avoid triggering macOS TCC prompts for ~/Documents. The actual working directory is managed by tmux via `new-session -c`.
+
+### Command Strip
+
+A persistent bottom bar displaying MRU-sorted slash command shortcut buttons. Commands are automatically detected from user input and stored for quick re-execution.
+
+**Input Detection:** `GhosttyTerminalView` tracks keystrokes in `inputLineBuffer`. When Enter is pressed and the buffer starts with `/`, the `onSlashCommand` callback fires. TerminalViewController records usage via `SlashCommandStore` and refreshes the strip.
+
+**Command Execution:** Clicking a pill button calls `GhosttyTerminalView.typeCommand()`, which sends each character via `ghostty_surface_key()` (keycode 0, text = character) followed by Enter (keycode 36, text = `\r`). This bypasses bracketed paste mode — `ghostty_surface_text()` wraps text in paste brackets, which TUI apps (Claude Code) do not execute.
+
+**Storage Strategy:**
+- Built-in commands (known Claude Code slash commands) → stored globally in `UserDefaults` (`slashCommandHistoryGlobal`), shown in all projects
+- Project-specific commands (custom skills, unknown commands) → stored per directory using SHA256-hashed key (`slashCommandHistory_<hash>`)
+- Classification uses a static `builtInCommands` set in `SlashCommandStore`
+- `SlashCommandStore.load(for:)` merges global + project-specific, sorted by `lastUsed` descending
+
+**UI Components:**
+- `CommandStripView` (NSView) — Horizontal scroll view with pill buttons + "+" button
+- `PillButton` — Custom NSButton with hover tracking, rounded corners, `acceptsFirstResponder = false` (never steals focus from terminal)
+- Right-click on pill button → "Remove" context menu
+- "+" button → `CommandListPopover` (SwiftUI in NSPopover) with search field and Global/This Project sections
+- Empty state: hint label "Type a /command to add shortcuts here"
 
 ### Terminal Rendering (GhosttyKit)
 
@@ -222,6 +247,11 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 - Persisted to UserDefaults as JSON
 - Used by launcher to show recent remote host:directory pairs
 
+**SlashCommand** (Codable, Identifiable, Hashable)
+- `command` (also serves as `id`), `lastUsed`, `useCount`, `isGlobal`
+- Global commands = recognized Claude Code built-in slash commands (stored app-wide)
+- Project-specific commands = custom skills or unknown commands (stored per directory)
+
 **ClaudeSessionHistory** / **CodexSessionHistory**
 - Parse recent session metadata from `~/.claude/projects` and `~/.codex`
 - Used by the launcher to provide click-to-resume history for both CLIs
@@ -285,6 +315,7 @@ User clicks notification
 - Behavior: activate on task completion (`activateOnStop`)
 - Launcher state: persisted between launches
 - Alerts: suppress close/quit confirmations
+- Command Strip: global command history, per-project command history
 - Session state: active session ID, recent directories
 
 ### Utilities
@@ -300,6 +331,7 @@ User clicks notification
 | `PermissionMode` | Shared permission mode label formatting |
 | `RecentDirectories` | Recent directory picker history |
 | `RemoteHistory` | MRU list of remote host:directory pairs |
+| `SlashCommandStore` | Slash command usage tracking with built-in classification and per-project storage |
 
 ## Concurrency Model
 

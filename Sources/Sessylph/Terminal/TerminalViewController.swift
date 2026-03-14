@@ -18,7 +18,7 @@ final class TerminalViewController: NSViewController {
     weak var delegate: TerminalViewControllerDelegate?
 
     private var ghosttyView: GhosttyTerminalView!
-
+    private var commandStripView: CommandStripView!
     nonisolated(unsafe) private var keyEventMonitor: Any?
 
     init(session: Session) {
@@ -42,6 +42,12 @@ final class TerminalViewController: NSViewController {
 
         view.layer?.backgroundColor = NSColor.white.cgColor
 
+        // Command strip at bottom
+        commandStripView = CommandStripView(frame: .zero)
+        commandStripView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(commandStripView)
+
+        // Terminal view
         ghosttyView = GhosttyTerminalView(frame: view.bounds)
         ghosttyView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(ghosttyView)
@@ -50,10 +56,46 @@ final class TerminalViewController: NSViewController {
             ghosttyView.topAnchor.constraint(equalTo: view.topAnchor),
             ghosttyView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             ghosttyView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            ghosttyView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ghosttyView.bottomAnchor.constraint(equalTo: commandStripView.topAnchor),
+
+            commandStripView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            commandStripView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            commandStripView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            commandStripView.heightAnchor.constraint(equalToConstant: CommandStripView.stripHeight),
         ])
 
+        setupCommandStrip()
         installKeyEventMonitor()
+    }
+
+    private func setupCommandStrip() {
+        let directory = session.directory
+        commandStripView.reloadCommands(for: directory)
+
+        commandStripView.onCommandSelected = { [weak self] command in
+            guard let self else { return }
+            self.ghosttyView.typeCommand(command)
+            SlashCommandStore.recordUsage(command, directory: directory)
+            self.commandStripView.reloadCommands(for: directory)
+            self.focusTerminal()
+        }
+
+        // Record known commands from the input buffer (exact match only).
+        // For local sessions, the UserPromptSubmit hook also fires for non-internal commands —
+        // recordUsage deduplicates within a 2s window to avoid double-counting.
+        ghosttyView.onSlashCommand = { [weak self] bufferCommand in
+            guard let self else { return }
+            let commandName = SlashCommandStore.extractCommandName(bufferCommand)
+            guard SlashCommandStore.isKnownCommand(commandName, directory: directory) else { return }
+            SlashCommandStore.recordUsage(commandName, directory: directory)
+            self.commandStripView.reloadCommands(for: directory)
+        }
+
+        commandStripView.onCommandRemoved = { [weak self] command in
+            guard let self else { return }
+            SlashCommandStore.remove(command, directory: directory)
+            self.commandStripView.reloadCommands(for: directory)
+        }
     }
 
     deinit {
@@ -170,6 +212,11 @@ final class TerminalViewController: NSViewController {
         }
 
         logger.info("Attached to tmux session: \(self.session.tmuxSessionName)")
+    }
+
+    /// Reloads the command strip to reflect updated usage data.
+    func reloadCommandStrip() {
+        commandStripView.reloadCommands(for: session.directory)
     }
 
     /// Feeds a visible error message into the terminal view.

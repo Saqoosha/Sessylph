@@ -11,6 +11,9 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
 
     var onTitleChange: ((String) -> Void)?
     var onProcessExit: (() -> Void)?
+    /// Called when Enter is pressed while the input buffer starts with "/".
+    /// Only used for remote sessions (no hooks). Local sessions use UserPromptSubmit hook.
+    var onSlashCommand: ((String) -> Void)?
 
     // MARK: - State
 
@@ -19,6 +22,8 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     private var trackingArea: NSTrackingArea?
     /// Text accumulated from insertText() during interpretKeyEvents, consumed by keyDown
     private var keyTextAccumulator: [String] = []
+    /// Tracks current line input for slash command detection
+    private var inputLineBuffer = ""
 
     // Scrollbar
     private let scrollThumb = NSView()
@@ -247,6 +252,28 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
             return
         }
 
+        // Track input for slash command detection
+        let accumulatedText = keyTextAccumulator.joined()
+        if !accumulatedText.isEmpty {
+            inputLineBuffer.append(accumulatedText)
+        }
+        let keyCode = event.keyCode
+        if keyCode == 36 || keyCode == 76 { // Enter / Numpad Enter
+            let trimmed = inputLineBuffer.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("/"), trimmed.count > 1 {
+                onSlashCommand?(trimmed)
+            }
+            inputLineBuffer = ""
+        } else if keyCode == 51 { // Backspace
+            if !inputLineBuffer.isEmpty { inputLineBuffer.removeLast() }
+        } else if keyCode == 53 // Escape
+            || keyCode == 126 || keyCode == 125 // Up, Down (history navigation)
+            || keyCode == 123 || keyCode == 124 // Left, Right (cursor movement)
+            || (event.modifierFlags.contains(.control) && (keyCode == 8 || keyCode == 32)) // Ctrl+C, Ctrl+U
+        {
+            inputLineBuffer = ""
+        }
+
         // Build key event with accumulated text from insertText()
         let mods = GhosttyInputHandler.ghosttyMods(event.modifierFlags)
 
@@ -256,7 +283,6 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         keyEvent.mods = mods
         keyEvent.consumed_mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
 
-        let accumulatedText = keyTextAccumulator.joined()
         if !accumulatedText.isEmpty {
             accumulatedText.withCString { cStr in
                 keyEvent.text = cStr
@@ -532,5 +558,42 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     func feedText(_ text: String) {
         guard let surface else { return }
         ghostty_surface_text(surface, text, UInt(text.utf8.count))
+    }
+
+    /// Sends a command string as individual key events followed by Enter.
+    /// Unlike feedText() which uses bracketed paste mode (TUI apps won't execute),
+    /// this simulates actual typing so the command is executed.
+    func typeCommand(_ command: String) {
+        // Clear input buffer to prevent stale data from triggering ghost detection
+        inputLineBuffer = ""
+        guard let surface else {
+            logger.warning("typeCommand called but surface is nil — command '\(command, privacy: .public)' dropped")
+            return
+        }
+
+        // Send each character as a key event (keycode 0 = ghostty uses text only)
+        for char in command {
+            let str = String(char)
+            str.withCString { cStr in
+                var keyEvent = ghostty_input_key_s()
+                keyEvent.action = GHOSTTY_ACTION_PRESS
+                keyEvent.keycode = 0
+                keyEvent.mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
+                keyEvent.consumed_mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
+                keyEvent.text = cStr
+                ghostty_surface_key(surface, keyEvent)
+            }
+        }
+
+        // Send Enter key with \r text
+        "\r".withCString { cStr in
+            var keyEvent = ghostty_input_key_s()
+            keyEvent.action = GHOSTTY_ACTION_PRESS
+            keyEvent.keycode = 36
+            keyEvent.mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
+            keyEvent.consumed_mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
+            keyEvent.text = cStr
+            ghostty_surface_key(surface, keyEvent)
+        }
     }
 }

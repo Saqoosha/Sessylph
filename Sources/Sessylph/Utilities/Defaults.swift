@@ -36,6 +36,10 @@ enum Defaults {
     static let recentDirectories = "recentDirectories"
     static let activeSessionId = "activeSessionId"
 
+    // MARK: - Command Strip
+    static let slashCommandHistoryGlobal = "slashCommandHistoryGlobal"
+    static let slashCommandHistoryPrefix = "slashCommandHistory_"
+
     static func register() {
         UserDefaults.standard.register(defaults: [
             notificationsEnabled: true,

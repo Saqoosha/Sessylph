@@ -4,7 +4,7 @@ import Foundation
 /// to the main Sessylph app via DistributedNotificationCenter.
 ///
 /// Usage: sessylph-notifier <sessionId> <event> [json]
-///   event: "stop" | "notify" | "permission_prompt" | "idle_prompt"
+///   event: "stop" | "notify" | "permission_prompt" | "idle_prompt" | "user_prompt"
 ///
 /// Called by Claude Code hooks (via --settings) with JSON on stdin,
 /// or by Codex notify hooks with JSON as argv[3].
@@ -26,6 +26,8 @@ func extractMessage(from data: Data) -> String? {
     guard !data.isEmpty,
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else { return nil }
+    // UserPromptSubmit uses "prompt"
+    if let prompt = json["prompt"] as? String { return prompt }
     // Claude Code uses "message"
     if let hookMessage = json["message"] as? String { return hookMessage }
     // Codex uses "last-assistant-message" or "summary"
