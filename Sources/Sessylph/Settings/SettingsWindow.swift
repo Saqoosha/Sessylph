@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class SettingsWindow: NSObject, NSToolbarDelegate {
+final class SettingsWindow: NSObject, NSToolbarDelegate, NSWindowDelegate {
+    private static let minContentSize = NSSize(width: 592, height: 745)
     static let shared = SettingsWindow()
 
     private let windowController: NSWindowController
@@ -36,7 +37,6 @@ final class SettingsWindow: NSObject, NSToolbarDelegate {
         )
         window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 592, height: 745)
         window.title = Tab.general.rawValue
 
         let hostingController = NSHostingController(rootView: SettingsContentView(selection: selection))
@@ -49,6 +49,7 @@ final class SettingsWindow: NSObject, NSToolbarDelegate {
 
         super.init()
 
+        window.delegate = self
         wc.windowFrameAutosaveName = "SettingsWindow"
 
         let toolbar = NSToolbar(identifier: "SettingsToolbar")
@@ -81,6 +82,21 @@ final class SettingsWindow: NSObject, NSToolbarDelegate {
         }
         windowController.showWindow(nil)
         windowController.window?.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let contentSize = sender.contentRect(forFrameRect: NSRect(origin: .zero, size: frameSize)).size
+        let minContent = Self.minContentSize
+        if contentSize.width >= minContent.width && contentSize.height >= minContent.height {
+            return frameSize
+        }
+        let clampedContent = NSSize(
+            width: max(contentSize.width, minContent.width),
+            height: max(contentSize.height, minContent.height)
+        )
+        return sender.frameRect(forContentRect: NSRect(origin: .zero, size: clampedContent)).size
     }
 
     // MARK: - NSToolbarDelegate
