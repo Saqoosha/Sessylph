@@ -95,14 +95,20 @@ final class TmuxManager: Sendable {
             // Remote: run each set-option separately to avoid shell escaping issues
             let t = "=\(name)"
             let commands: [[String]] = [
+                // Session-level options
                 ["set-option", "-t", t, "set-titles", "on"],
                 ["set-option", "-t", t, "set-titles-string", "#{pane_title}"],
                 ["set-option", "-t", t, "allow-passthrough", "on"],
                 ["set-window-option", "-t", t, "allow-rename", "on"],
                 ["set-option", "-t", t, "mouse", "off"],
+                // Server-level options (same as serverOptions, applied individually for SSH)
                 ["set-option", "-s", "extended-keys", "on"],
+                ["set-option", "-s", "extended-keys-format", "csi-u"],
+                ["set-option", "-sa", "terminal-features", "xterm-256color:extkeys"],
+                ["set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@"],
                 ["set-option", "-g", "window-size", "latest"],
                 ["set-option", "-g", "mouse", "off"],
+                ["set-environment", "-gu", "CLAUDECODE"],
             ]
             for cmd in commands {
                 _ = try? await runTmux(args: cmd, remoteHost: remoteHost)
