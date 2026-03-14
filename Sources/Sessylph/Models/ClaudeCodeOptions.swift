@@ -14,6 +14,7 @@ struct ClaudeCodeOptions: Codable, Sendable {
     var appendSystemPrompt: String? = nil
     var additionalDirs: [String]? = nil
     var mcpConfigs: [String]? = nil
+    var effortLevel: String? = nil
 
     init() {}
 
@@ -66,6 +67,11 @@ struct ClaudeCodeOptions: Codable, Sendable {
 
         if verbose {
             parts.append("--verbose")
+        }
+
+        if let effortLevel {
+            parts.append("--effort")
+            parts.append(shellQuote(effortLevel))
         }
 
         if let systemPrompt {

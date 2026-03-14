@@ -28,6 +28,15 @@ struct SessionConfigSheet: View {
                     Toggle("Skip Permissions", isOn: $options.dangerouslySkipPermissions)
                 }
 
+                Section("Effort") {
+                    Picker("Effort Level", selection: binding(for: \.effortLevel)) {
+                        Text("Auto").tag("")
+                        Text("Low").tag("low")
+                        Text("Medium").tag("medium")
+                        Text("High").tag("high")
+                    }
+                }
+
                 Section("Session") {
                     Toggle("Continue Last Session", isOn: $options.continueSession)
                     Toggle("Verbose Output", isOn: $options.verbose)

@@ -5,6 +5,7 @@ enum Defaults {
     static let defaultCLIType = "defaultCLIType"
     static let defaultModel = "defaultModel"
     static let defaultPermissionMode = "defaultPermissionMode"
+    static let defaultEffortLevel = "defaultEffortLevel"
 
     // MARK: - Codex
     static let codexModel = "codexModel"

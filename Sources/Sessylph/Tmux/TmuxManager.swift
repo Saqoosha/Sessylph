@@ -62,23 +62,19 @@ final class TmuxManager: Sendable {
 
     private init() {}
 
-    /// Configures tmux server-level options that only need to be set once
-    /// per server lifetime (e.g. extended keys for CSI u / kitty protocol).
-    /// All commands are batched into a single tmux invocation.
-    /// Best-effort: failures are logged but don't block session launch.
-    /// Server-level options applied once per server lifetime.
-    /// Included in createAndLaunchSession and configureSession batches
-    /// (not a separate call, since the tmux server may not exist yet).
+    /// Server-level tmux options (extended keys, terminal overrides, etc.).
+    /// Used in local createAndLaunchSession and configureSession batches only.
+    /// Remote paths inline equivalent options separately.
     private static let serverOptions: [String] = [
         ";", "set-option", "-s", "extended-keys", "on",
         ";", "set-option", "-s", "extended-keys-format", "csi-u",
         ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
         // Disable alternate screen so output stays in the main buffer,
-        // allowing xterm.js scrollback to accumulate history.
+        // allowing GhosttyKit scrollback to accumulate history.
         ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
         // Use the latest active client's size (not the smallest)
         ";", "set-option", "-g", "window-size", "latest",
-        // Mouse off — let xterm.js handle scroll natively via its scrollback buffer.
+        // Mouse off — let GhosttyKit handle scroll natively via its scrollback buffer.
         ";", "set-option", "-g", "mouse", "off",
         // Remove CLAUDECODE from tmux global environment so new sessions don't
         // inherit it — Claude Code treats its presence as a nested session and
@@ -92,27 +88,38 @@ final class TmuxManager: Sendable {
     /// Best-effort: failures are logged but don't block reattach.
     func configureSession(name: String, remoteHost: RemoteHost? = nil) async {
         if remoteHost != nil {
-            // Remote: run each set-option separately to avoid shell escaping issues
-            let t = "=\(name)"
-            let commands: [[String]] = [
+            // Remote: batch all options into a single SSH invocation for speed.
+            // runRemoteTmux escapes ";" as "\;" to prevent the remote shell from
+            // interpreting it as a command separator; the shell passes literal ";"
+            // to tmux as a batch separator.
+            // NOTE: Do NOT use "=" prefix for -t targets over SSH — remote tmux
+            // fails with "no such session".
+            let t = name
+            _ = try? await runTmux(args: [
                 // Session-level options
-                ["set-option", "-t", t, "set-titles", "on"],
-                ["set-option", "-t", t, "set-titles-string", "#{pane_title}"],
-                ["set-option", "-t", t, "allow-passthrough", "on"],
-                ["set-window-option", "-t", t, "allow-rename", "on"],
-                ["set-option", "-t", t, "mouse", "off"],
-                // Server-level options (same as serverOptions, applied individually for SSH)
-                ["set-option", "-s", "extended-keys", "on"],
-                ["set-option", "-s", "extended-keys-format", "csi-u"],
-                ["set-option", "-sa", "terminal-features", "xterm-256color:extkeys"],
-                ["set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@"],
-                ["set-option", "-g", "window-size", "latest"],
-                ["set-option", "-g", "mouse", "off"],
-                ["set-environment", "-gu", "CLAUDECODE"],
-            ]
-            for cmd in commands {
-                _ = try? await runTmux(args: cmd, remoteHost: remoteHost)
-            }
+                "set-option", "-t", t, "set-titles", "on",
+                ";", "set-option", "-t", t, "set-titles-string", "#{pane_title}",
+                ";", "set-option", "-t", t, "allow-passthrough", "on",
+                ";", "set-window-option", "-t", t, "allow-rename", "on",
+                ";", "set-option", "-t", t, "mouse", "off",
+                // Hide tmux status bar — Sessylph manages tabs natively
+                ";", "set-option", "-t", t, "status", "off",
+                // Server-level options
+                ";", "set-option", "-s", "extended-keys", "on",
+                ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+                ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
+                ";", "set-option", "-g", "window-size", "latest",
+                ";", "set-option", "-g", "mouse", "off",
+                ";", "set-environment", "-gu", "CLAUDECODE",
+                // Set COLORTERM so programs inside tmux detect truecolor support.
+                // For reattach, set-environment applies to new panes in this session.
+                ";", "set-environment", "COLORTERM", "truecolor",
+            ], remoteHost: remoteHost)
+            // Best-effort: extended-keys-format csi-u requires tmux 3.4+.
+            // Separated so failure doesn't abort the main batch.
+            _ = try? await runTmux(args: [
+                "set-option", "-s", "extended-keys-format", "csi-u",
+            ], remoteHost: remoteHost)
         } else {
             let t = "=\(name)"
             _ = try? await runTmux(args: [
@@ -137,18 +144,33 @@ final class TmuxManager: Sendable {
         remoteHost: RemoteHost? = nil
     ) async throws {
         if remoteHost != nil {
-            // Remote: avoid tmux batch commands (semicolons get mangled by SSH shell).
-            // Use separate SSH invocations instead.
+            // Remote: batch new-session + configure + send-keys into a single SSH call.
+            // runRemoteTmux escapes ";" as "\;" to prevent the remote shell from
+            // interpreting it as a command separator.
+            // NOTE: Do NOT use "=" prefix for -t targets over SSH — remote tmux
+            // fails with "no such session".
             _ = try await runTmux(args: [
                 "new-session", "-d", "-s", name, "-c", directory.path,
+                "-e", "COLORTERM=truecolor",
+                ";", "set-option", "-t", name, "set-titles", "on",
+                ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
+                ";", "set-option", "-t", name, "allow-passthrough", "on",
+                ";", "set-window-option", "-t", name, "allow-rename", "on",
+                ";", "set-option", "-t", name, "mouse", "off",
+                // Hide tmux status bar — Sessylph manages tabs natively
+                ";", "set-option", "-t", name, "status", "off",
+                ";", "set-option", "-s", "extended-keys", "on",
+                ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+                ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
+                ";", "set-option", "-g", "window-size", "latest",
+                ";", "set-option", "-g", "mouse", "off",
+                ";", "set-environment", "-gu", "CLAUDECODE",
+                ";", "send-keys", "-t", name, command, "Enter",
             ], remoteHost: remoteHost)
-
-            // Configure session (best-effort)
-            await configureSession(name: name, remoteHost: remoteHost)
-
-            // Launch command
-            _ = try await runTmux(args: [
-                "send-keys", "-t", name, command, "Enter",
+            // Best-effort: extended-keys-format csi-u requires tmux 3.4+.
+            // Separated so failure doesn't abort the main batch.
+            _ = try? await runTmux(args: [
+                "set-option", "-s", "extended-keys-format", "csi-u",
             ], remoteHost: remoteHost)
         } else {
             // Local: use batched tmux commands for minimal latency.
@@ -158,9 +180,11 @@ final class TmuxManager: Sendable {
             do {
                 _ = try await runTmux(args: [
                     "new-session", "-d", "-s", name, "-c", directory.path,
+                    "-e", "COLORTERM=truecolor",
                     ";", "set-option", "-t", name, "set-titles", "on",
                     ";", "set-option", "-t", name, "set-titles-string", "#{pane_title}",
                     ";", "set-option", "-t", name, "allow-passthrough", "on",
+                    ";", "set-window-option", "-t", name, "allow-rename", "on",
                     ";", "set-option", "-t", name, "mouse", "off",
                 ] + Self.serverOptions + [
                     ";", "send-keys", "-t", name, command, "Enter",

@@ -45,6 +45,7 @@ struct LauncherView: View {
     // Claude Code options
     @AppStorage(Defaults.defaultModel) private var model = ""
     @AppStorage(Defaults.defaultPermissionMode) private var permissionMode = ""
+    @AppStorage(Defaults.defaultEffortLevel) private var effortLevel = ""
     @AppStorage(Defaults.launcherSkipPermissions) private var skipPermissions = false
     @AppStorage(Defaults.launcherContinueSession) private var continueSession = false
     @AppStorage(Defaults.launcherVerbose) private var verbose = false
@@ -248,6 +249,20 @@ struct LauncherView: View {
                     .labelsHidden()
                     .fixedSize()
                     .disabled(skipPermissions)
+                }
+
+                GridRow {
+                    Text("Effort:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $effortLevel) {
+                        Text("Auto").tag("")
+                        Text("Low").tag("low")
+                        Text("Medium").tag("medium")
+                        Text("High").tag("high")
+                    }
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
 
@@ -988,6 +1003,7 @@ struct LauncherView: View {
         var opts = ClaudeCodeOptions()
         opts.model = model.isEmpty ? nil : model
         opts.permissionMode = permissionMode.isEmpty ? nil : permissionMode
+        opts.effortLevel = effortLevel.isEmpty ? nil : effortLevel
         opts.dangerouslySkipPermissions = skipPermissions
         opts.continueSession = continueSession ?? self.continueSession
         opts.verbose = verbose

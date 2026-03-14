@@ -3,6 +3,7 @@ import SwiftUI
 struct GeneralSettingsView: View {
     @AppStorage(Defaults.defaultModel) private var defaultModel = ""
     @AppStorage(Defaults.defaultPermissionMode) private var defaultPermissionMode = ""
+    @AppStorage(Defaults.defaultEffortLevel) private var defaultEffortLevel = ""
     @AppStorage(Defaults.notificationsEnabled) private var notificationsEnabled = true
     @AppStorage(Defaults.notifyOnStop) private var notifyOnStop = true
     @AppStorage(Defaults.notifyOnPermission) private var notifyOnPermission = true
@@ -26,6 +27,13 @@ struct GeneralSettingsView: View {
                     ForEach(cliOptions.permissionModes, id: \.self) { mode in
                         Text(PermissionMode.label(for: mode)).tag(mode)
                     }
+                }
+
+                Picker("Effort Level", selection: $defaultEffortLevel) {
+                    Text("Auto").tag("")
+                    Text("Low").tag("low")
+                    Text("Medium").tag("medium")
+                    Text("High").tag("high")
                 }
             }
 
