@@ -23,17 +23,17 @@ struct GeneralSettingsView: View {
                     }
                 }
 
-                Picker("Permission Mode", selection: $defaultPermissionMode) {
-                    ForEach(cliOptions.permissionModes, id: \.self) { mode in
-                        Text(PermissionMode.label(for: mode)).tag(mode)
-                    }
-                }
-
                 Picker("Effort Level", selection: $defaultEffortLevel) {
                     Text("Auto").tag("")
                     Text("Low").tag("low")
                     Text("Medium").tag("medium")
                     Text("High").tag("high")
+                }
+
+                Picker("Permission Mode", selection: $defaultPermissionMode) {
+                    ForEach(cliOptions.permissionModes, id: \.self) { mode in
+                        Text(PermissionMode.label(for: mode)).tag(mode)
+                    }
                 }
             }
 

@@ -10,12 +10,19 @@ struct SessionConfigSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section("Model & Permissions") {
+                Section("Model & Options") {
                     Picker("Model", selection: binding(for: \.model)) {
                         Text("Default").tag("")
                         ForEach(cliOptions.modelAliases, id: \.self) { alias in
                             Text(alias.prefix(1).uppercased() + alias.dropFirst()).tag(alias)
                         }
+                    }
+
+                    Picker("Effort Level", selection: binding(for: \.effortLevel)) {
+                        Text("Auto").tag("")
+                        Text("Low").tag("low")
+                        Text("Medium").tag("medium")
+                        Text("High").tag("high")
                     }
 
                     Picker("Permission Mode", selection: binding(for: \.permissionMode)) {
@@ -26,15 +33,6 @@ struct SessionConfigSheet: View {
                     }
 
                     Toggle("Skip Permissions", isOn: $options.dangerouslySkipPermissions)
-                }
-
-                Section("Effort") {
-                    Picker("Effort Level", selection: binding(for: \.effortLevel)) {
-                        Text("Auto").tag("")
-                        Text("Low").tag("low")
-                        Text("Medium").tag("medium")
-                        Text("High").tag("high")
-                    }
                 }
 
                 Section("Session") {

@@ -238,20 +238,6 @@ struct LauncherView: View {
                 }
 
                 GridRow {
-                    Text("Permission:")
-                        .foregroundStyle(.secondary)
-                        .gridColumnAlignment(.trailing)
-                    Picker("", selection: $permissionMode) {
-                        ForEach(cliOptions.permissionModes, id: \.self) { mode in
-                            Text(PermissionMode.label(for: mode)).tag(mode)
-                        }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                    .disabled(skipPermissions)
-                }
-
-                GridRow {
                     Text("Effort:")
                         .foregroundStyle(.secondary)
                         .gridColumnAlignment(.trailing)
@@ -263,6 +249,20 @@ struct LauncherView: View {
                     }
                     .labelsHidden()
                     .fixedSize()
+                }
+
+                GridRow {
+                    Text("Permission:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $permissionMode) {
+                        ForEach(cliOptions.permissionModes, id: \.self) { mode in
+                            Text(PermissionMode.label(for: mode)).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(skipPermissions)
                 }
             }
 
