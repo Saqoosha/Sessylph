@@ -52,7 +52,7 @@ enum ClaudeCLI {
     }
 
     /// Known model aliases as fallback when parsing fails.
-    private static let knownModelAliases = ["sonnet", "opus", "haiku", "sonnet[1m]", "opusplan"]
+    private static let knownModelAliases = ["opus[1m]", "opus", "sonnet[1m]", "sonnet", "haiku"]
 
     /// Known permission modes as fallback when parsing fails.
     private static let knownPermissionModes = ["default", "plan", "auto", "acceptEdits", "dontAsk", "bypassPermissions"]
