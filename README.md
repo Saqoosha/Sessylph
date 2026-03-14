@@ -17,6 +17,7 @@ English | [日本語](README.ja.md)
 - **Desktop Notifications** — Get notified when Claude Code completes a task (local via hooks, remote via title polling) or when Codex hands the turn back to you
 - **Auto-Activate** — Optionally bring the app and tab to front when a task completes
 - **Image Paste** — Paste images directly into the terminal with Cmd+V
+- **Command Strip** — Slash commands you use are automatically detected and displayed as shortcut buttons at the bottom of the terminal; click to re-execute instantly, sorted by most recently used
 - **Configurable** — Customize CLI type, model, approval mode, appearance, and behavior via Settings
 
 ## Requirements

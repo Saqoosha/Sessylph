@@ -309,6 +309,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         stateTracker.markNeedsAttention()
     }
 
+    /// Refreshes the command strip after a slash command is recorded via hook.
+    func reloadCommandStrip() {
+        terminalVC?.reloadCommandStrip()
+    }
+
     // MARK: - ClaudeStateTrackerDelegate
 
     func stateTracker(_ tracker: ClaudeStateTracker, didUpdateState state: ClaudeState, icon: String) {

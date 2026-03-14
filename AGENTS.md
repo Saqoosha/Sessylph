@@ -57,6 +57,10 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - `RemoteHostsSettingsView.swift` — settings tab for managing remote hosts
 - `SettingsWindow.swift` — NSToolbar-based settings window (General + Remote Hosts tabs)
 - `TabManager.swift` — multi-window tab group coordination
+- `CommandStripView.swift` — bottom bar with MRU-sorted slash command shortcut buttons
+- `CommandListPopover.swift` — popover showing all recorded commands with search
+- `SlashCommand.swift` — command data model (command, usage count, global/project scope)
+- `SlashCommandStore.swift` — command usage persistence with built-in classification and per-project storage
 
 ## Key Patterns
 - Bundle ID: sh.saqoo.Sessylph

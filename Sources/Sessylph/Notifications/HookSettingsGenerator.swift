@@ -40,6 +40,18 @@ enum HookSettingsGenerator {
                         ],
                     ],
                 ],
+                "UserPromptSubmit": [
+                    [
+                        "matcher": "",
+                        "hooks": [
+                            [
+                                "type": "command",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) user_prompt",
+                                "timeout": 5,
+                            ]
+                        ],
+                    ]
+                ],
             ]
         ]
 
