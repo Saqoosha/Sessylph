@@ -36,6 +36,7 @@ final class SettingsWindow: NSObject, NSToolbarDelegate {
         )
         window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 592, height: 745)
         window.title = Tab.general.rawValue
 
         let hostingController = NSHostingController(rootView: SettingsContentView(selection: selection))
@@ -68,6 +69,15 @@ final class SettingsWindow: NSObject, NSToolbarDelegate {
             tabSelection.current = tab
             windowController.window?.title = tab.rawValue
             windowController.window?.toolbar?.selectedItemIdentifier = tab.toolbarItemIdentifier
+        }
+        if let window = windowController.window {
+            // Bring window back to visible screen if it's outside all screens
+            let isOnScreen = NSScreen.screens.contains { screen in
+                window.frame.intersects(screen.visibleFrame)
+            }
+            if !isOnScreen {
+                window.center()
+            }
         }
         windowController.showWindow(nil)
         windowController.window?.makeKeyAndOrderFront(nil)
