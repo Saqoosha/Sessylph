@@ -75,6 +75,7 @@ final class TmuxManager: Sendable {
         // Use the latest active client's size (not the smallest)
         ";", "set-option", "-g", "window-size", "latest",
         // Mouse off — let GhosttyKit handle scroll natively via its scrollback buffer.
+        // Pane selection by click is handled at the app level (GhosttyTerminalView).
         ";", "set-option", "-g", "mouse", "off",
         // Remove CLAUDECODE from tmux global environment so new sessions don't
         // inherit it — Claude Code treats its presence as a nested session and
@@ -319,6 +320,31 @@ final class TmuxManager: Sendable {
             logger.debug("Failed to get pane path for \(sessionName): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    // MARK: - Pane Mouse Mode
+
+    /// Returns the number of panes in the active window of the given session,
+    /// or `nil` on error (callers should preserve previous state).
+    /// Note: Uses plain session name (no `=` prefix) — `display-message -t` and
+    /// `set-option -t` silently fail with `=` prefix outside batch commands.
+    func getPaneCount(sessionName: String, remoteHost: RemoteHost? = nil) async -> Int? {
+        do {
+            let output = try await runTmux(args: [
+                "display-message", "-t", sessionName, "-p", "#{window_panes}",
+            ], remoteHost: remoteHost)
+            return Int(output.trimmingCharacters(in: .whitespacesAndNewlines))
+        } catch {
+            logger.debug("Failed to get pane count for \(sessionName): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Enables or disables tmux mouse mode for the given session.
+    func setMouse(on: Bool, sessionName: String, remoteHost: RemoteHost? = nil) async {
+        _ = try? await runTmux(args: [
+            "set-option", "-t", sessionName, "mouse", on ? "on" : "off",
+        ], remoteHost: remoteHost)
     }
 
     // MARK: - SSH Connection Testing
