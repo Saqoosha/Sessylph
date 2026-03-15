@@ -5,6 +5,7 @@ final class CommandStripView: NSView {
 
     var onCommandSelected: ((String) -> Void)?
     var onCommandRemoved: ((String) -> Void)?
+    var onCommandAdded: ((String) -> Void)?
 
     private let scrollView = NSScrollView()
     private let stackView = NSStackView()
@@ -109,7 +110,6 @@ final class CommandStripView: NSView {
         let hasCommands = !commands.isEmpty
         hintLabel.isHidden = hasCommands
         scrollView.isHidden = !hasCommands
-        moreButton.isHidden = !hasCommands
 
         for command in commands {
             let button = makePillButton(title: command.command)
@@ -159,6 +159,10 @@ final class CommandStripView: NSView {
             onSelect: { [weak self, weak popover] command in
                 popover?.close()
                 self?.onCommandSelected?(command)
+            },
+            onAdd: { [weak self, weak popover] command in
+                popover?.close()
+                self?.onCommandAdded?(command)
             }
         )
         popover.contentViewController = CommandListHostingController(rootView: listView)

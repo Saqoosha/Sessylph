@@ -99,6 +99,12 @@ final class TerminalViewController: NSViewController {
             SlashCommandStore.remove(command, directory: directory)
             self.commandStripView.reloadCommands(for: directory)
         }
+
+        commandStripView.onCommandAdded = { [weak self] command in
+            guard let self else { return }
+            SlashCommandStore.addManual(command, directory: directory)
+            self.commandStripView.reloadCommands(for: directory)
+        }
     }
 
     deinit {

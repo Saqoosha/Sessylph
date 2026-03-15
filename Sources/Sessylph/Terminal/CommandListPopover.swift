@@ -4,8 +4,12 @@ import SwiftUI
 struct CommandListView: View {
     let commands: [SlashCommand]
     let onSelect: (String) -> Void
+    var onAdd: ((String) -> Void)?
 
     @State private var searchText = ""
+    @State private var isAddingCommand = false
+    @State private var newCommandText = ""
+    @FocusState private var isNewCommandFocused: Bool
 
     private var globalCommands: [SlashCommand] {
         commands.filter(\.isGlobal).filtered(by: searchText)
@@ -31,7 +35,7 @@ struct CommandListView: View {
 
             Divider()
 
-            if globalCommands.isEmpty && projectCommands.isEmpty {
+            if globalCommands.isEmpty && projectCommands.isEmpty && !isAddingCommand {
                 Text("No commands found")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -56,7 +60,64 @@ struct CommandListView: View {
                     .padding(.vertical, 4)
                 }
             }
+
+            if isAddingCommand {
+                Divider()
+                HStack(spacing: 6) {
+                    Text("/")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    TextField("command-name", text: $newCommandText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, design: .monospaced))
+                        .focused($isNewCommandFocused)
+                        .onSubmit { commitNewCommand() }
+                        .onAppear { isNewCommandFocused = true }
+                    Button {
+                        isAddingCommand = false
+                        newCommandText = ""
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+            }
+
+            Divider()
+
+            Button {
+                isAddingCommand = true
+                newCommandText = ""
+            } label: {
+                HStack {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11))
+                    Text("Add Command")
+                        .font(.system(size: 12))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
         }
+    }
+
+    private func commitNewCommand() {
+        let text = newCommandText.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else {
+            isAddingCommand = false
+            return
+        }
+        onAdd?(text)
+        isAddingCommand = false
+        newCommandText = ""
     }
 
     private func sectionHeader(_ title: String) -> some View {
