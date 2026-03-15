@@ -107,6 +107,12 @@ Sources/
 └── SessylphNotifier/      # Bundled CLI for hook → notification bridge
 ```
 
+## Auto-Adopt Pipeline
+
+Sessylph includes an automated pipeline that monitors Claude Code releases daily. When new features are detected, it uses Claude Code CLI to analyze the changelog, implement changes in an isolated jj worktree, verify the build, and create a draft PR — all without touching your current work.
+
+See [docs/auto-adopt.md](docs/auto-adopt.md) for setup instructions.
+
 ## Third-Party Libraries
 
 - [GhosttyKit (libghostty)](https://github.com/ghostty-org/ghostty) — Terminal emulator library with Metal GPU rendering

@@ -66,6 +66,11 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - `SlashCommand.swift` — command data model (command/phrase, usage count, global/project scope)
 - `SlashCommandStore.swift` — command usage persistence with built-in classification and per-project storage
 
+## Automation
+- `scripts/auto-adopt.sh` — daily pipeline that monitors Claude Code releases, analyzes changelog with Claude Code CLI, implements changes in an isolated jj worktree, and creates draft PRs after build verification
+- `sh.saqoo.sessylph.auto-adopt.plist` — launchd config for daily execution (9:00 JST)
+- See [docs/auto-adopt.md](docs/auto-adopt.md) for setup instructions
+
 ## Key Patterns
 - Bundle ID: sh.saqoo.Sessylph
 - Development Team: G5G54TCH8W
