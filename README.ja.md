@@ -8,6 +8,10 @@
   タブ付きターミナル、tmux永続化、デスクトップ通知を備えた <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> / Codex CLI のネイティブ macOS ラッパー。
 </p>
 
+<p align="center">
+  <img src="images/screenshot.png" width="600" alt="Sessylph スクリーンショット">
+</p>
+
 ## 特徴
 
 - **タブインターフェース** — 各タブが独立した Claude Code または Codex セッションを実行。macOS ネイティブのウィンドウタブを使用

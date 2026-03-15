@@ -8,6 +8,10 @@ English | [日本語](README.ja.md)
   A native macOS wrapper for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> and Codex CLI with tabbed terminal sessions, tmux persistence, and desktop notifications.
 </p>
 
+<p align="center">
+  <img src="images/screenshot.png" width="600" alt="Sessylph screenshot">
+</p>
+
 ## Features
 
 - **Tabbed Interface** — Each tab runs an independent Claude Code or Codex session using native macOS window tabbing
