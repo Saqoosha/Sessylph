@@ -165,7 +165,7 @@ A persistent bottom bar displaying MRU-sorted slash command shortcut buttons. Co
 
 **Input Detection:** `GhosttyTerminalView` tracks keystrokes in `inputLineBuffer`. When Enter is pressed and the buffer starts with `/`, the `onSlashCommand` callback fires. TerminalViewController records usage via `SlashCommandStore` and refreshes the strip.
 
-**Command Execution:** Clicking a pill button calls `GhosttyTerminalView.typeCommand()`, which sends each character via `ghostty_surface_key()` (keycode 0, text = character) followed by Enter (keycode 36, text = `\r`). This bypasses bracketed paste mode — `ghostty_surface_text()` wraps text in paste brackets, which TUI apps (Claude Code) do not execute.
+**Command Execution:** Clicking a pill button calls `GhosttyTerminalView.typeCommand()`, which sends the entire command + `\r` as a single `ghostty_surface_key()` event (keycode 0, text = command + CR). This produces one atomic PTY write, immune to SSH buffering that could split characters across packets. `ghostty_surface_text()` is not used because it wraps text in bracketed paste mode, which TUI apps (Claude Code) do not execute.
 
 **Storage Strategy:**
 - Built-in commands (known Claude Code slash commands) → stored globally in `UserDefaults` (`slashCommandHistoryGlobal`), shown in all projects

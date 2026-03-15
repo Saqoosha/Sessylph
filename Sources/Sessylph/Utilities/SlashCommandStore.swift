@@ -65,7 +65,7 @@ enum SlashCommandStore {
         let global = loadEntries(forKey: Defaults.slashCommandHistoryGlobal)
         let projectKey = projectStorageKey(for: directory)
         let project = loadEntries(forKey: projectKey)
-        // Deduplicate: prefer the entry with the higher useCount
+        // Deduplicate: prefer the entry with the higher useCount or more recent lastUsed
         var byCommand: [String: SlashCommand] = [:]
         for entry in global + project {
             if let existing = byCommand[entry.command] {
@@ -113,7 +113,7 @@ enum SlashCommandStore {
         let key = isBuiltIn(command) ? Defaults.slashCommandHistoryGlobal : projectStorageKey(for: directory)
         var entries = loadEntries(forKey: key)
         guard !entries.contains(where: { $0.command == command }) else { return }
-        entries.append(SlashCommand(command: command, lastUsed: Date(), useCount: 0))
+        entries.append(SlashCommand(command: command, lastUsed: .distantPast, useCount: 0))
         if entries.count > maxCount {
             entries.sort { $0.lastUsed > $1.lastUsed }
             entries = Array(entries.prefix(maxCount))
