@@ -64,10 +64,7 @@ struct CommandListView: View {
             if isAddingCommand {
                 Divider()
                 HStack(spacing: 6) {
-                    Text("/")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    TextField("command-name", text: $newCommandText)
+                    TextField("/command or phrase", text: $newCommandText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .monospaced))
                         .focused($isNewCommandFocused)
@@ -96,7 +93,7 @@ struct CommandListView: View {
                 HStack {
                     Image(systemName: "plus")
                         .font(.system(size: 11))
-                    Text("Add Command")
+                    Text("Add Shortcut")
                         .font(.system(size: 12))
                     Spacer()
                 }

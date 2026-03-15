@@ -10,7 +10,7 @@ final class CommandStripView: NSView {
     private let scrollView = NSScrollView()
     private let stackView = NSStackView()
     private let moreButton = NSButton()
-    private let hintLabel = NSTextField(labelWithString: "Type a /command to add shortcuts here")
+    private let hintLabel = NSTextField(labelWithString: "Use + to add command shortcuts or quick phrases")
     private let separator = NSBox()
     private var commands: [SlashCommand] = []
     private var popover: NSPopover?
@@ -82,7 +82,7 @@ final class CommandStripView: NSView {
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: moreButton.leadingAnchor, constant: -2),
             scrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
 
             stackView.topAnchor.constraint(equalTo: scrollView.topAnchor),
             stackView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
@@ -186,7 +186,8 @@ private final class PillButton: NSButton {
         self.translatesAutoresizingMaskIntoConstraints = false
         self.wantsLayer = true
         self.layer?.cornerRadius = 10
-        updateBackground()
+        self.layer?.borderWidth = 1
+        updateAppearance()
 
         let textWidth = (title as NSString).size(withAttributes: [.font: font!]).width
         NSLayoutConstraint.activate([
@@ -219,25 +220,29 @@ private final class PillButton: NSButton {
 
     override func mouseEntered(with event: NSEvent) {
         isHovering = true
-        updateBackground()
+        updateAppearance()
     }
 
     override func mouseExited(with event: NSEvent) {
         isHovering = false
-        updateBackground()
+        updateAppearance()
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        updateBackground()
+        updateAppearance()
     }
 
-    private func updateBackground() {
-        let color: NSColor = isHovering
+    private func updateAppearance() {
+        let bgColor: NSColor = isHovering
             ? NSColor.controlAccentColor.withAlphaComponent(0.2)
             : NSColor.controlColor
+        let borderColor: NSColor = isHovering
+            ? NSColor.controlAccentColor.withAlphaComponent(0.4)
+            : NSColor.separatorColor
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = color.cgColor
+            layer?.backgroundColor = bgColor.cgColor
+            layer?.borderColor = borderColor.cgColor
         }
     }
 }
