@@ -111,6 +111,7 @@ enum SlashCommandStore {
         // For slash commands, extract just the command name (strip arguments)
         if command.hasPrefix("/") {
             command = extractCommandName(command)
+            guard command != "/" else { return }
         }
 
         let key = isBuiltIn(command) ? Defaults.slashCommandHistoryGlobal : projectStorageKey(for: directory)
