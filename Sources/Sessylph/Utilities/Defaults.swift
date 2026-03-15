@@ -40,6 +40,8 @@ enum Defaults {
     static let slashCommandHistoryGlobal = "slashCommandHistoryGlobal"
     static let slashCommandHistoryPrefix = "slashCommandHistory_"
 
+    // MARK: - Registration
+
     static func register() {
         UserDefaults.standard.register(defaults: [
             notificationsEnabled: true,

@@ -84,6 +84,20 @@ final class GhosttyApp {
         logger.info("GhosttyApp initialized successfully")
     }
 
+    func reloadConfig() {
+        guard let app else { return }
+        guard let config = GhosttyConfig.makeConfig() else {
+            logger.error("Failed to create ghostty config for reload")
+            return
+        }
+        ghostty_app_update_config(app, config)
+        ghostty_config_free(config)
+        let controllers = TabManager.shared.windowControllers
+        for controller in controllers {
+            controller.refreshTerminal()
+        }
+    }
+
     func shutdown() {
         if let app {
             ghostty_app_free(app)

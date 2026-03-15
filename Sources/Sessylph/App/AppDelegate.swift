@@ -181,10 +181,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func closeTab(_ sender: Any?) {
-        guard let keyWindow = NSApp.keyWindow,
-              let controller = TabManager.shared.windowControllers.first(where: { $0.window === keyWindow })
-        else { return }
-        TabManager.shared.closeTab(controller)
+        guard let keyWindow = NSApp.keyWindow else { return }
+        if let controller = TabManager.shared.windowControllers.first(where: { $0.window === keyWindow }) {
+            TabManager.shared.closeTab(controller)
+        } else {
+            keyWindow.performClose(nil)
+        }
     }
 
     @objc private func showSettings(_ sender: Any?) {

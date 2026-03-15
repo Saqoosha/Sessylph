@@ -81,10 +81,10 @@ enum SlashCommandStore {
 
     // MARK: - Record Usage
 
-    /// Records a slash command usage. Determines if it's built-in (global) or project-specific.
+    /// Records a command usage. Determines if it's built-in (global) or project-specific.
     static func recordUsage(_ rawCommand: String, directory: URL) {
         let command = extractCommandName(rawCommand)
-        guard command.count > 1 else { return }
+        guard !command.isEmpty, command != "/" else { return }
 
         if isBuiltIn(command) {
             var entries = loadEntries(forKey: Defaults.slashCommandHistoryGlobal)
@@ -101,14 +101,17 @@ enum SlashCommandStore {
     // MARK: - Add Manual
 
     /// Adds a command manually (not from usage tracking).
-    /// Extracts the command name (stripping arguments), auto-prepends "/" if missing.
-    /// Stored globally if it matches a built-in, otherwise project-specific.
+    /// Accepts slash commands (extracts name) or free-text phrases.
+    /// Slash commands are stored globally if built-in, otherwise project-specific.
+    /// Free-text is always project-specific.
     /// Does nothing if the command already exists.
     static func addManual(_ rawCommand: String, directory: URL) {
         var command = rawCommand.trimmingCharacters(in: .whitespaces)
-        if !command.hasPrefix("/") { command = "/" + command }
-        command = extractCommandName(command)
-        guard command.count > 1 else { return }
+        guard !command.isEmpty else { return }
+        // For slash commands, extract just the command name (strip arguments)
+        if command.hasPrefix("/") {
+            command = extractCommandName(command)
+        }
 
         let key = isBuiltIn(command) ? Defaults.slashCommandHistoryGlobal : projectStorageKey(for: directory)
         var entries = loadEntries(forKey: key)
