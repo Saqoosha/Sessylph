@@ -560,36 +560,24 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         ghostty_surface_text(surface, text, UInt(text.utf8.count))
     }
 
-    /// Sends a command string as individual key events followed by Enter.
-    /// Unlike feedText() which uses bracketed paste mode (TUI apps won't execute),
-    /// this simulates actual typing so the command is executed.
+    /// Sends a command string to the terminal and executes it.
+    /// Sends the entire command + CR as a single key event's text field,
+    /// resulting in one atomic PTY write — immune to SSH buffering issues.
     func typeCommand(_ command: String) {
-        // Clear input buffer to prevent stale data from triggering ghost detection
         inputLineBuffer = ""
         guard let surface else {
             logger.warning("typeCommand called but surface is nil — command '\(command, privacy: .public)' dropped")
             return
         }
 
-        // Send each character as a key event (keycode 0 = ghostty uses text only)
-        for char in command {
-            let str = String(char)
-            str.withCString { cStr in
-                var keyEvent = ghostty_input_key_s()
-                keyEvent.action = GHOSTTY_ACTION_PRESS
-                keyEvent.keycode = 0
-                keyEvent.mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
-                keyEvent.consumed_mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
-                keyEvent.text = cStr
-                ghostty_surface_key(surface, keyEvent)
-            }
-        }
-
-        // Send Enter key with \r text
-        "\r".withCString { cStr in
+        // Send command + \r as a single key event (keycode 0 = text-only).
+        // Unlike individual key events per character, this produces one PTY
+        // write so the entire command arrives atomically over SSH.
+        let fullText = command + "\r"
+        fullText.withCString { cStr in
             var keyEvent = ghostty_input_key_s()
             keyEvent.action = GHOSTTY_ACTION_PRESS
-            keyEvent.keycode = 36
+            keyEvent.keycode = 0
             keyEvent.mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
             keyEvent.consumed_mods = ghostty_input_mods_e(GHOSTTY_MODS_NONE.rawValue)
             keyEvent.text = cStr
