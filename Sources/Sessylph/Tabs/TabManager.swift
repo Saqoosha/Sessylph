@@ -215,13 +215,19 @@ final class TabManager {
 
     // MARK: - Bookkeeping
 
-    func windowControllerDidClose(_ controller: TabWindowController) {
+    func windowControllerDidClose(_ controller: TabWindowController, hadRunningSession: Bool) {
         windowControllers.removeAll { $0 === controller }
         if !isTerminating {
             SessionStore.shared.remove(id: controller.session.id)
             HookSettingsGenerator.cleanup(sessionId: controller.session.id.uuidString)
-
         }
         logger.info("Tab closed (\(self.windowControllers.count) remaining)")
+
+        // When the last tab with a session is closed, open a fresh launcher window
+        // so the user always has a window to interact with.
+        // Don't reopen if the user closed an empty launcher window.
+        if !isTerminating && windowControllers.isEmpty && hadRunningSession {
+            newTab()
+        }
     }
 }

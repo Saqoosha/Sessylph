@@ -405,3 +405,34 @@ Key differences from local:
   - Notifications via title polling instead of hooks (hooks can't bridge SSH)
   - Remote history stored separately from local recent directories
 ```
+
+## Auto-Adopt Pipeline
+
+An automated pipeline monitors Claude Code releases and creates draft PRs when new features can be integrated into Sessylph. Designed to run on an always-on Mac via launchd.
+
+```
+launchd (daily 9:00 JST)
+  → scripts/auto-adopt.sh
+      → npm view @anthropic-ai/claude-code version
+      → Compare with ~/.local/share/sessylph-auto-adopt/last-version.txt
+      → No change → exit
+      → New version found:
+          → gh api to fetch release notes from GitHub Releases
+          → jj workspace add /tmp/sessylph-auto-adopt -r main
+              (isolated worktree — main workspace unaffected)
+          → Symlink libghostty.a from main repo
+          → claude -p --dangerously-skip-permissions analyzes changelog
+          → xcodegen generate && xcodebuild (build verification)
+          → Build passes → jj bookmark + push + gh pr create --draft
+          → Build fails → gh issue create (deduplicated, max 3 retries)
+          → jj workspace forget + cleanup
+```
+
+Key design decisions:
+- **jj worktree isolation** — `jj workspace add` creates a separate working copy; the developer's active workspace is never touched
+- **Build verification** — Draft PRs are only created when the build succeeds
+- **Failure handling** — Build failures create GitHub Issues with Claude's analysis and build error logs; duplicate issues are prevented via `gh issue list --search`; retry capped at 3 attempts per version
+- **`trap EXIT` cleanup** — Temp files and worktrees are cleaned up on all exit paths
+- **GitHub CLI `--repo` flag** — jj worktrees lack `.git`, so all `gh` commands use explicit `--repo`
+
+See [docs/auto-adopt.md](auto-adopt.md) for setup instructions.

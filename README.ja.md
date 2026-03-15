@@ -107,6 +107,12 @@ Sources/
 └── SessylphNotifier/      # バンドル済み CLI (hook → 通知ブリッジ)
 ```
 
+## 自動採用パイプライン
+
+Claude Code のリリースを毎日自動監視するパイプラインを搭載。新機能が検出されると、Claude Code CLI が changelog を分析し、隔離された jj ワークツリーで変更を実装、ビルド検証後にドラフト PR を自動作成します。現在の作業には一切影響しません。
+
+セットアップ方法は [docs/auto-adopt.md](docs/auto-adopt.md) を参照。
+
 ## 使用ライブラリ
 
 - [GhosttyKit (libghostty)](https://github.com/ghostty-org/ghostty) — Metal GPU レンダリング対応のターミナルエミュレータライブラリ

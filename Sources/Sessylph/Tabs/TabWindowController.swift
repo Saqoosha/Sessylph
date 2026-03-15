@@ -460,6 +460,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         stateTracker.stopTitlePolling()
         terminalVC?.teardown()
 
+        let wasRunning = session.isRunning
         if session.isRunning && !TabManager.shared.isTerminating {
             let sessionName = session.tmuxSessionName
             let remoteHost = session.remoteHost
@@ -485,6 +486,6 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             }
         }
 
-        TabManager.shared.windowControllerDidClose(self)
+        TabManager.shared.windowControllerDidClose(self, hadRunningSession: wasRunning)
     }
 }
