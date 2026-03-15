@@ -20,6 +20,9 @@ final class TerminalViewController: NSViewController {
     private var ghosttyView: GhosttyTerminalView!
     private var commandStripView: CommandStripView!
     nonisolated(unsafe) private var keyEventMonitor: Any?
+    private var paneMonitorTimer: Timer?
+    private var lastPaneCount = 1
+    private var isPollingPanes = false
 
     init(session: Session) {
         self.session = session
@@ -105,7 +108,34 @@ final class TerminalViewController: NSViewController {
     }
 
     func teardown() {
+        paneMonitorTimer?.invalidate()
+        paneMonitorTimer = nil
         ghosttyView.teardown()
+    }
+
+    // MARK: - Pane Monitor
+
+    /// Polls tmux pane count and toggles mouse mode:
+    /// single pane → mouse off (GhosttyKit native scroll),
+    /// multiple panes → mouse on (tmux per-pane scroll + click selection).
+    private func startPaneMonitor() {
+        let sessionName = session.tmuxSessionName
+        let remoteHost = session.remoteHost
+        paneMonitorTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, !self.isPollingPanes else { return }
+                self.isPollingPanes = true
+                defer { self.isPollingPanes = false }
+
+                guard let count = await TmuxManager.shared.getPaneCount(
+                    sessionName: sessionName, remoteHost: remoteHost
+                ), self.lastPaneCount != count else { return }
+                self.lastPaneCount = count
+                await TmuxManager.shared.setMouse(
+                    on: count > 1, sessionName: sessionName, remoteHost: remoteHost
+                )
+            }
+        }
     }
 
     // MARK: - Key Event Monitor (Cmd+V → image paste)
@@ -211,6 +241,7 @@ final class TerminalViewController: NSViewController {
             return
         }
 
+        startPaneMonitor()
         logger.info("Attached to tmux session: \(self.session.tmuxSessionName)")
     }
 
