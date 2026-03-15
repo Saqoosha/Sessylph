@@ -260,8 +260,12 @@ final class TerminalViewController: NSViewController {
         ghosttyView.onProcessExit = nil
         paneMonitorTimer?.invalidate()
         paneMonitorTimer = nil
+        lastPaneCount = 0
         ghosttyView.teardown()
         startTmuxAttach()
+        if ghosttyView.surface == nil {
+            logger.error("refreshTerminal: surface recreation failed, tmux session is still running")
+        }
     }
 
     func reloadCommandStrip() {

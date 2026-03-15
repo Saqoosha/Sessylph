@@ -156,7 +156,7 @@ struct FontPopUpButton: NSViewRepresentable {
 
     func updateNSView(_ button: NSPopUpButton, context: Context) {
         context.coordinator.parent = self
-        if button.numberOfItems != fonts.count {
+        if button.itemTitles != fonts {
             rebuildMenu(button)
         }
         if button.titleOfSelectedItem != selection {
