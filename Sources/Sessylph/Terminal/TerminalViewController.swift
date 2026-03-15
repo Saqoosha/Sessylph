@@ -1,4 +1,5 @@
 import AppKit
+@preconcurrency import GhosttyKit
 import os.log
 
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Sessylph", category: "Terminal")
@@ -251,7 +252,18 @@ final class TerminalViewController: NSViewController {
         logger.info("Attached to tmux session: \(self.session.tmuxSessionName)")
     }
 
-    /// Reloads the command strip to reflect updated usage data.
+    /// Recreates the terminal surface to pick up config changes (e.g. font).
+    /// The tmux session survives; only the PTY attachment is restarted.
+    func refreshTerminal() {
+        guard ghosttyView?.surface != nil else { return }
+        // Suppress process-exit callback so the dying old surface doesn't close the tab
+        ghosttyView.onProcessExit = nil
+        paneMonitorTimer?.invalidate()
+        paneMonitorTimer = nil
+        ghosttyView.teardown()
+        startTmuxAttach()
+    }
+
     func reloadCommandStrip() {
         commandStripView.reloadCommands(for: session.directory)
     }

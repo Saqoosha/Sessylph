@@ -314,6 +314,11 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         terminalVC?.reloadCommandStrip()
     }
 
+    /// Refreshes the terminal surface (e.g. after config reload).
+    func refreshTerminal() {
+        terminalVC?.refreshTerminal()
+    }
+
     // MARK: - ClaudeStateTrackerDelegate
 
     func stateTracker(_ tracker: ClaudeStateTracker, didUpdateState state: ClaudeState, icon: String) {
