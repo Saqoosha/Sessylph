@@ -36,6 +36,10 @@ struct SessionConfigSheet: View {
                 }
 
                 Section("Session") {
+                    TextField("Session Name", text: Binding(
+                        get: { options.sessionName ?? "" },
+                        set: { options.sessionName = $0.isEmpty ? nil : $0 }
+                    ))
                     Toggle("Continue Last Session", isOn: $options.continueSession)
                     Toggle("Verbose Output", isOn: $options.verbose)
 

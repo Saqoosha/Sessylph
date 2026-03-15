@@ -15,6 +15,7 @@ struct ClaudeCodeOptions: Codable, Sendable {
     var additionalDirs: [String]? = nil
     var mcpConfigs: [String]? = nil
     var effortLevel: String? = nil
+    var sessionName: String? = nil
 
     init() {}
 
@@ -96,6 +97,11 @@ struct ClaudeCodeOptions: Codable, Sendable {
                 parts.append("--mcp-config")
                 parts.append(shellQuote(config))
             }
+        }
+
+        if let sessionName, !sessionName.isEmpty {
+            parts.append("--name")
+            parts.append(shellQuote(sessionName))
         }
 
         if let hookSettingsPath {

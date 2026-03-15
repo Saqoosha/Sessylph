@@ -273,6 +273,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "permission_prompt":
             controller?.markNeedsAttention()
             NotificationManager.shared.postPermissionRequired(sessionTitle: notificationBody, sessionId: sessionId, message: message ?? "Needs your permission", isFrontmost: isTabVisible)
+        case "elicitation":
+            controller?.markNeedsAttention()
+            NotificationManager.shared.postElicitationRequired(sessionTitle: notificationBody, sessionId: sessionId, message: message ?? "MCP server needs input", isFrontmost: isTabVisible)
         case "idle_prompt":
             NotificationManager.shared.postIdleReminder(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
         case "user_prompt":

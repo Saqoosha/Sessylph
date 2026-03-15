@@ -40,6 +40,18 @@ enum HookSettingsGenerator {
                         ],
                     ],
                 ],
+                "Elicitation": [
+                    [
+                        "matcher": "",
+                        "hooks": [
+                            [
+                                "type": "command",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) elicitation",
+                                "timeout": 5,
+                            ]
+                        ],
+                    ]
+                ],
                 "UserPromptSubmit": [
                     [
                         "matcher": "",

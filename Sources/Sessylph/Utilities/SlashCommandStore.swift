@@ -24,7 +24,7 @@ enum SlashCommandStore {
         "/remote-control", "/remote-env", "/rename", "/resume",
         "/review", "/rewind", "/sandbox", "/security-review",
         "/skills", "/stats", "/status", "/statusline", "/stickers",
-        "/tasks", "/terminal-setup", "/theme", "/upgrade", "/usage", "/vim",
+        "/tasks", "/terminal-setup", "/theme", "/upgrade", "/usage", "/vim", "/voice",
         // Aliases
         "/reset", "/new", "/settings", "/app", "/bug", "/quit",
         "/allowed-tools", "/continue", "/checkpoint", "/rc",
