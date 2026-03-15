@@ -40,13 +40,16 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 ## Key Source Files
 - `GhosttyTerminalView.swift` — NSView wrapping ghostty surface (Metal rendering, input handling)
 - `GhosttyApp.swift` — ghostty_app lifecycle, action dispatch, clipboard callbacks
-- `GhosttyConfig.swift` — ghostty configuration (font, theme, scrollback)
+- `GhosttyConfig.swift` — ghostty configuration (font family/size, theme, scrollback)
 - `GhosttyInputHandler.swift` — keyboard/IME input routing to ghostty
-- `TerminalViewController.swift` — tab content controller, tmux attach orchestration
+- `TerminalViewController.swift` — tab content controller, tmux attach orchestration, pane monitor (dynamic mouse mode)
 - `TabWindowController.swift` — NSWindowController, tab management, state delegation
 - `ClaudeStateTracker.swift` — title polling, Claude idle/working/attention state machine
+- `CLIType.swift` — enum for Claude Code / Codex CLI selection
+- `ClaudeCodeOptions.swift` — Claude Code options (model, effort level, permission mode, etc.)
+- `CodexOptions.swift` — Codex options (model, approval mode, resume session)
 - `CodexSessionHistory.swift` — parses recent Codex sessions from `~/.codex` for launcher resume
-- `TmuxManager.swift` — tmux session lifecycle (create, configure, attach, destroy) + remote SSH commands
+- `TmuxManager.swift` — tmux session lifecycle (create, configure, attach, destroy) + remote SSH commands + pane count / mouse mode
 - `EnvironmentBuilder.swift` — login shell environment capture (thread-safe cached)
 - `LaunchConfig.swift` — shared launcher config for Claude Code / Codex / remote session startup
 - `CodexCLI.swift` — Codex CLI resolution and launcher option discovery
@@ -55,11 +58,12 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - `RemoteHistory.swift` — MRU list of remote host:directory pairs
 - `RemoteDirectoryBrowser.swift` — SSH directory listing for remote host file browser
 - `RemoteHostsSettingsView.swift` — settings tab for managing remote hosts
+- `SessionConfigSheet.swift` — pre-launch config sheet (model, effort, permission mode, toggles)
 - `SettingsWindow.swift` — NSToolbar-based settings window (General + Remote Hosts tabs)
 - `TabManager.swift` — multi-window tab group coordination
-- `CommandStripView.swift` — bottom bar with MRU-sorted slash command shortcut buttons
-- `CommandListPopover.swift` — popover showing all recorded commands with search
-- `SlashCommand.swift` — command data model (command, usage count, global/project scope)
+- `CommandStripView.swift` — bottom bar with MRU-sorted slash command and phrase shortcut buttons
+- `CommandListPopover.swift` — popover showing all recorded commands with search and manual add
+- `SlashCommand.swift` — command data model (command/phrase, usage count, global/project scope)
 - `SlashCommandStore.swift` — command usage persistence with built-in classification and per-project storage
 
 ## Key Patterns

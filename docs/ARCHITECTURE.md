@@ -50,14 +50,14 @@ Sources/
 │   ├── App/              AppDelegate, main, Info.plist
 │   ├── Launcher/         LauncherView (SwiftUI directory picker + CLI options),
 │   │                     RemoteDirectoryBrowser, ComboBox
-│   ├── Models/           Session, SessionStore, LaunchConfig,
+│   ├── Models/           Session, SessionStore, LaunchConfig, CLIType,
 │   │                     Claude/Codex options, Claude/Codex session history,
 │   │                     RemoteHost, RemoteHostStore, RemoteHistory,
 │   │                     SlashCommand
 │   ├── Notifications/    NotificationManager, HookSettingsGenerator
 │   ├── Resources/        Assets
-│   ├── Settings/         SettingsWindow (NSToolbar), GeneralSettingsView,
-│   │                     RemoteHostsSettingsView, SessionConfigSheet
+│   ├── Settings/         SettingsWindow (NSToolbar), GeneralSettingsView (font picker),
+│   │                     RemoteHostsSettingsView, SessionConfigSheet (pre-launch config)
 │   ├── Tabs/             TabManager, TabWindowController, ClaudeStateTracker
 │   ├── Terminal/         GhosttyTerminalView, GhosttyApp, GhosttyConfig,
 │   │                     GhosttyInputHandler, TerminalViewController,
@@ -159,25 +159,32 @@ Hosts a `GhosttyTerminalView` (Metal-rendered NSView) and a `CommandStripView` (
 
 **Working directory isolation:** The ghostty surface uses `/tmp` as its working directory (not the project directory) to avoid triggering macOS TCC prompts for ~/Documents. The actual working directory is managed by tmux via `new-session -c`.
 
+**Pane Monitor (Dynamic Mouse Mode):** A 2-second timer polls `TmuxManager.getPaneCount()` and toggles tmux mouse mode automatically:
+- Single pane → mouse off (GhosttyKit handles native scroll via scrollback buffer)
+- Multiple panes → mouse on (enables tmux per-pane scrolling and click-to-select pane)
+- Works for both local and remote sessions
+
 ### Command Strip
 
-A persistent bottom bar displaying MRU-sorted slash command shortcut buttons. Commands are automatically detected from user input and stored for quick re-execution.
+A persistent bottom bar displaying MRU-sorted shortcut buttons for slash commands and free-text phrases. Commands are automatically detected from user input and stored for quick re-execution. Users can also manually add commands via the "+" button.
 
 **Input Detection:** `GhosttyTerminalView` tracks keystrokes in `inputLineBuffer`. When Enter is pressed and the buffer starts with `/`, the `onSlashCommand` callback fires. TerminalViewController records usage via `SlashCommandStore` and refreshes the strip.
 
 **Command Execution:** Clicking a pill button calls `GhosttyTerminalView.typeCommand()`, which sends the entire command + `\r` as a single `ghostty_surface_key()` event (keycode 0, text = command + CR). This produces one atomic PTY write, immune to SSH buffering that could split characters across packets. `ghostty_surface_text()` is not used because it wraps text in bracketed paste mode, which TUI apps (Claude Code) do not execute.
 
 **Storage Strategy:**
-- Built-in commands (known Claude Code slash commands) → stored globally in `UserDefaults` (`slashCommandHistoryGlobal`), shown in all projects
-- Project-specific commands (custom skills, unknown commands) → stored per directory using SHA256-hashed key (`slashCommandHistory_<hash>`)
+- Built-in slash commands (known Claude Code commands) → stored globally in `UserDefaults` (`slashCommandHistoryGlobal`), shown in all projects
+- Project-specific commands (custom skills, unknown commands, free-text phrases) → stored per directory using SHA256-hashed key (`slashCommandHistory_<hash>`)
+- Free-text phrases (non-`/` prefixed) are always stored project-specific
 - Classification uses a static `builtInCommands` set in `SlashCommandStore`
 - `SlashCommandStore.load(for:)` merges global + project-specific, sorted by `lastUsed` descending
+- Max 100 entries per storage location; oldest purged when limit exceeded
 
 **UI Components:**
 - `CommandStripView` (NSView) — Horizontal scroll view with pill buttons + "+" button
 - `PillButton` — Custom NSButton with hover tracking, rounded corners, `acceptsFirstResponder = false` (never steals focus from terminal)
 - Right-click on pill button → "Remove" context menu
-- "+" button → `CommandListPopover` (SwiftUI in NSPopover) with search field and Global/This Project sections
+- "+" button → `CommandListPopover` (SwiftUI in NSPopover) with search field, Global/This Project sections, and inline "Add Shortcut" input for manually adding commands or phrases
 - Empty state: hint label "Type a /command to add shortcuts here"
 
 ### Terminal Rendering (GhosttyKit)
@@ -195,9 +202,10 @@ A persistent bottom bar displaying MRU-sorted slash command shortcut buttons. Co
 - `surfaceView(from:)` helper to resolve surface → NSView
 
 **GhosttyConfig** — Builds ghostty configuration from user preferences.
-- Font family + size from `UserDefaults`
+- Font family + size from `UserDefaults` (default: "Comic Code" 13pt)
 - Scrollback lines, cursor style, theme
 - tmux-friendly terminal overrides
+- Supports live reload via `GhosttyApp.shared.reloadConfig()` when font settings change
 
 **GhosttyInputHandler** — Routes keyboard and IME input to ghostty.
 - `keyDown()` passes raw virtual keycodes + accumulated text
@@ -211,12 +219,18 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 
 - **Session lifecycle:** `createAndLaunchSession()` (create + configure + launch in one invocation), `configureSession()` (for reattach), kill
 - **Remote SSH:** `executeRemoteCommand()` runs tmux commands on remote hosts via SSH, `shellEscape()` for safe argument passing
-- **Queries:** list sessions, get pane title, get current path, get window size, capture pane history
+- **Queries:** list sessions, get pane title, get current path, get window size, get pane count, capture pane history
+- **Mouse mode:** `getPaneCount()` / `setMouse(on:)` — dynamic mouse toggle based on pane count
 - **Server config:** Extended keys, CSI u, alternate screen disabled (smcup@:rmcup@), mouse off, window size "latest", allow-rename on (all batched into session creation)
 - **Session naming:** `sessylph-{first 8 chars of UUID}`
 - **Remote target safety:** Uses plain session names (no `=` prefix) for remote `-t` targets since `=` prefix is not supported over SSH
 
 ### Models
+
+**CLIType** (String enum, Codable, Sendable, CaseIterable)
+- `.claudeCode` ("claude") and `.codex` ("codex")
+- Used by launcher to select which CLI to start
+- Persisted as `defaultCLIType` in UserDefaults
 
 **Session** (Identifiable, Codable, Sendable)
 - `id`, `directory`, `options`, `tmuxSessionName`, `isRunning`, `createdAt`
@@ -225,9 +239,15 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 - `isRemote` computed property checks for `remoteHost` presence
 - `CodingKeys` excludes `isRunning` (transient runtime state)
 
-**ClaudeCodeOptions** / **CodexOptions** (Codable, Sendable)
-- Claude and Codex-specific launcher options
-- `CodexOptions` also supports `resumeSessionId` for launcher history resume
+**ClaudeCodeOptions** (Codable, Sendable)
+- Claude Code launcher options: model, effort level (Low/Medium/High), permission mode, skip permissions, continue session, verbose, max budget
+- `effortLevel` maps to `--effort` CLI flag
+- `buildCommand()` constructs the full CLI invocation
+
+**CodexOptions** (Codable, Sendable)
+- Codex launcher options: model, approval mode (ask/fullAuto/yolo), dangerous bypass, full auto
+- `resumeSessionId` for launcher history resume
+- `buildCommand()` constructs the full CLI invocation with notifier TOML config
 
 **LaunchConfig**
 - Enum wrapping `.claudeCode(ClaudeCodeOptions)`, `.codex(CodexOptions)`, `.remoteAttach(RemoteHost, sessionName)`, and `.remoteNewSession(RemoteHost, directory, ClaudeCodeOptions)`
@@ -250,7 +270,7 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 **SlashCommand** (Codable, Identifiable, Hashable)
 - `command` (also serves as `id`), `lastUsed`, `useCount`, `isGlobal`
 - Global commands = recognized Claude Code built-in slash commands (stored app-wide)
-- Project-specific commands = custom skills or unknown commands (stored per directory)
+- Project-specific commands = custom skills, unknown commands, or free-text phrases (stored per directory)
 
 **ClaudeSessionHistory** / **CodexSessionHistory**
 - Parse recent session metadata from `~/.claude/projects` and `~/.codex`
@@ -304,12 +324,14 @@ User clicks notification
 - Single SwiftUI content view with `ObservableObject` tab selection for flicker-free switching
 - `show(tab:)` method to open a specific tab programmatically (e.g., "Manage Hosts..." button)
 
-**GeneralSettingsView** — Launcher defaults, notification toggles, font slider, Claude/Codex version display.
+**GeneralSettingsView** — Launcher defaults (CLI type, model, effort level, permission mode), notification toggles, font selection (monospaced font picker + size slider with live preview), Claude/Codex version display.
+
+**SessionConfigSheet** — Pre-launch configuration sheet for Claude Code sessions. Displayed before starting a session; configures model, effort level, permission mode, skip permissions, continue session, verbose output. Returns config via `onStart()` callback.
 
 **RemoteHostsSettingsView** — CRUD interface for remote host configurations with SSH connection testing.
 
 **Defaults** — Static keys for `UserDefaults`:
-- General: default model, permission mode
+- General: default CLI type, model, effort level, permission mode
 - Appearance: font name, font size (10–24pt)
 - Notifications: enabled, notify on stop, notify on permission
 - Behavior: activate on task completion (`activateOnStop`)
