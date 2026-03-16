@@ -15,7 +15,7 @@ final class CommandStripView: NSView {
     private var commands: [SlashCommand] = []
     private var popover: NSPopover?
 
-    static let stripHeight: CGFloat = 30
+    static let stripHeight: CGFloat = 36
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -81,7 +81,7 @@ final class CommandStripView: NSView {
 
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: moreButton.leadingAnchor, constant: -2),
-            scrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 6),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
 
             stackView.topAnchor.constraint(equalTo: scrollView.topAnchor),

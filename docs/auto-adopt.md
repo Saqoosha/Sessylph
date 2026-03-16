@@ -48,8 +48,9 @@ npm view @anthropic-ai/claude-code version > ~/.local/share/sessylph-auto-adopt/
 # 2. Create GitHub label (one-time)
 gh label create auto-adopt --color 0E8A16 --description "Auto-adopted from upstream"
 
-# 3. Register launchd agent
-cp sh.saqoo.sessylph.auto-adopt.plist ~/Library/LaunchAgents/
+# 3. Install launchd agent (replace placeholders with actual paths)
+sed -e "s|__REPO_DIR__|$(pwd)|g" -e "s|__HOME_DIR__|$HOME|g" \
+  sh.saqoo.sessylph.auto-adopt.plist > ~/Library/LaunchAgents/sh.saqoo.sessylph.auto-adopt.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.saqoo.sessylph.auto-adopt.plist
 
 # 4. Verify
