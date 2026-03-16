@@ -15,6 +15,7 @@ struct ClaudeCodeOptions: Codable, Sendable {
     var additionalDirs: [String]? = nil
     var mcpConfigs: [String]? = nil
     var effortLevel: String? = nil
+    var sessionName: String? = nil
 
     init() {}
 
@@ -72,6 +73,11 @@ struct ClaudeCodeOptions: Codable, Sendable {
         if let effortLevel {
             parts.append("--effort")
             parts.append(shellQuote(effortLevel))
+        }
+
+        if let sessionName {
+            parts.append("--name")
+            parts.append(shellQuote(sessionName))
         }
 
         if let systemPrompt {

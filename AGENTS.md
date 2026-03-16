@@ -30,7 +30,7 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - GhosttyKit (Metal) terminal view connects via PTY to `tmux attach-session`
 - Terminal rendering: GhosttyKit (libghostty) with native Metal GPU rendering
 - `ClaudeStateTracker` parses terminal title to detect Claude idle/working/attention states
-- Notifications: local via Claude Code hooks / Codex notify + `sessylph-notifier` CLI → DistributedNotificationCenter; remote via title polling (working → idle detection)
+- Notifications: local via Claude Code hooks / Codex notify + `sessylph-notifier` CLI → DistributedNotificationCenter; hooks: Stop, Notification, UserPromptSubmit, PostCompact; remote via title polling (working → idle detection)
 - Remote SSH sessions: connect to configured hosts, browse directories, launch Claude Code over SSH with tmux
 - Launcher supports recent Claude Code, Codex, and remote session history with click-to-resume
 - Sessions survive app restart (tmux persistence)
@@ -46,7 +46,7 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - `TabWindowController.swift` — NSWindowController, tab management, state delegation
 - `ClaudeStateTracker.swift` — title polling, Claude idle/working/attention state machine
 - `CLIType.swift` — enum for Claude Code / Codex CLI selection
-- `ClaudeCodeOptions.swift` — Claude Code options (model, effort level, permission mode, etc.)
+- `ClaudeCodeOptions.swift` — Claude Code options (model, effort level, permission mode, session name, etc.)
 - `CodexOptions.swift` — Codex options (model, approval mode, resume session)
 - `CodexSessionHistory.swift` — parses recent Codex sessions from `~/.codex` for launcher resume
 - `TmuxManager.swift` — tmux session lifecycle (create, configure, attach, destroy) + remote SSH commands + pane count / mouse mode

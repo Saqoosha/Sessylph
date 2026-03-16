@@ -43,6 +43,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(title: "💬 Codex Is Ready", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
     }
 
+    func postContextCompacted(sessionTitle: String, sessionId: String, isFrontmost: Bool) {
+        guard UserDefaults.standard.bool(forKey: Defaults.notifyOnStop) else { return }
+        post(title: "🗜 Context Compacted", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)
+    }
+
     // MARK: - Private
 
     private func post(title: String, body: String, sessionId: String, isFrontmost: Bool) {

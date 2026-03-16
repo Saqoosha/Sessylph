@@ -52,6 +52,18 @@ enum HookSettingsGenerator {
                         ],
                     ]
                 ],
+                "PostCompact": [
+                    [
+                        "matcher": "",
+                        "hooks": [
+                            [
+                                "type": "command",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) post_compact",
+                                "timeout": 5,
+                            ]
+                        ],
+                    ]
+                ],
             ]
         ]
 

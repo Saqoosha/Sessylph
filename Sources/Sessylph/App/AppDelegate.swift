@@ -287,6 +287,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     logger.warning("[CmdStrip] Cannot record command — no matching session for id \(sessionId, privacy: .public)")
                 }
             }
+        case "post_compact":
+            NotificationManager.shared.postContextCompacted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
         default:
             logger.warning("Unknown hook event: \(event, privacy: .public)")
         }
