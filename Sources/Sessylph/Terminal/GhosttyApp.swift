@@ -47,13 +47,14 @@ final class GhosttyApp {
             return app.handleAction(target: target, action: action)
         }
         runtimeConfig.read_clipboard_cb = { userdata, clipboard, state in
-            guard let state else { return }
+            guard let state else { return false }
             DispatchQueue.main.async {
                 let content = NSPasteboard.general.string(forType: .string) ?? ""
                 content.withCString { cStr in
                     ghostty_surface_complete_clipboard_request(state, cStr, state, true)
                 }
             }
+            return true
         }
         runtimeConfig.confirm_read_clipboard_cb = nil
         runtimeConfig.write_clipboard_cb = { userdata, clipboard, content, count, confirm in
@@ -122,7 +123,7 @@ final class GhosttyApp {
     private func handleAction(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         switch action.tag {
-        case GHOSTTY_ACTION_SET_TITLE:
+        case GHOSTTY_ACTION_SET_TITLE, GHOSTTY_ACTION_SET_TAB_TITLE:
             return handleSetTitle(target: target, action: action.action.set_title)
         case GHOSTTY_ACTION_OPEN_URL:
             return handleOpenURL(action: action.action.open_url)

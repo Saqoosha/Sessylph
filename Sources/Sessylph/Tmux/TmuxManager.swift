@@ -144,6 +144,11 @@ final class TmuxManager: Sendable {
         command: String,
         remoteHost: RemoteHost? = nil
     ) async throws {
+        // Unset TMUX so Bun's getColorDepth() isn't capped at 256 colors.
+        // Bun checks $TMUX before $COLORTERM and short-circuits to 8-bit (256),
+        // missing the COLORTERM=truecolor path that would yield 24-bit color.
+        // Works in tandem with `-e COLORTERM=truecolor` on new-session below.
+        let wrappedCommand = "env -u TMUX \(command)"
         if remoteHost != nil {
             // Remote: batch new-session + configure + send-keys into a single SSH call.
             // runRemoteTmux escapes ";" as "\;" to prevent the remote shell from
@@ -166,7 +171,7 @@ final class TmuxManager: Sendable {
                 ";", "set-option", "-g", "window-size", "latest",
                 ";", "set-option", "-g", "mouse", "off",
                 ";", "set-environment", "-gu", "CLAUDECODE",
-                ";", "send-keys", "-t", name, command, "Enter",
+                ";", "send-keys", "-t", name, wrappedCommand, "Enter",
             ], remoteHost: remoteHost)
             // Best-effort: extended-keys-format csi-u requires tmux 3.4+.
             // Separated so failure doesn't abort the main batch.
@@ -188,7 +193,7 @@ final class TmuxManager: Sendable {
                     ";", "set-window-option", "-t", name, "allow-rename", "on",
                     ";", "set-option", "-t", name, "mouse", "off",
                 ] + Self.serverOptions + [
-                    ";", "send-keys", "-t", name, command, "Enter",
+                    ";", "send-keys", "-t", name, wrappedCommand, "Enter",
                 ])
             } catch {
                 guard await sessionExists(name: name) else {
