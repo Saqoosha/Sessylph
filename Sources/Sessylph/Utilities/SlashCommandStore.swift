@@ -15,7 +15,7 @@ enum SlashCommandStore {
         "/add-dir", "/agents", "/btw", "/chrome", "/clear", "/color",
         "/compact", "/config", "/context", "/copy", "/cost",
         "/desktop", "/diff", "/doctor", "/effort", "/exit", "/export",
-        "/extra-usage", "/fast", "/feedback", "/fork", "/help",
+        "/extra-usage", "/fast", "/feedback", "/fork", "/branch", "/help",
         "/hooks", "/ide", "/init", "/insights", "/install-github-app",
         "/install-slack-app", "/keybindings", "/login", "/logout",
         "/mcp", "/memory", "/mobile", "/model", "/passes",
