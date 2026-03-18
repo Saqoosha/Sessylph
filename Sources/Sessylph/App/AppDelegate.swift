@@ -275,6 +275,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 NotificationManager.shared.postTaskCompleted(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
             }
+        case "stop_failure":
+            controller?.markNeedsAttention()
+            if UserDefaults.standard.bool(forKey: Defaults.activateOnStop), let uuid, !isAppActive {
+                TabManager.shared.bringToFront(sessionId: uuid)
+                // Delay notification so it arrives after app activation completes.
+                // Immediate posting gets swallowed by macOS during the background→foreground transition.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationManager.shared.postAPIError(sessionTitle: notificationBody, sessionId: sessionId, failureReason: message, isFrontmost: isTabVisible)
+                }
+            } else {
+                NotificationManager.shared.postAPIError(sessionTitle: notificationBody, sessionId: sessionId, failureReason: message, isFrontmost: isTabVisible)
+            }
         case "notify":
             NotificationManager.shared.postCodexTurnReady(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
         case "permission_prompt":
