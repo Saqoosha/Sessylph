@@ -18,6 +18,18 @@ enum HookSettingsGenerator {
                         ],
                     ]
                 ],
+                "StopFailure": [
+                    [
+                        "matcher": "",
+                        "hooks": [
+                            [
+                                "type": "command",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) stop_failure",
+                                "timeout": 5,
+                            ]
+                        ],
+                    ]
+                ],
                 "Notification": [
                     [
                         "matcher": "permission_prompt",
