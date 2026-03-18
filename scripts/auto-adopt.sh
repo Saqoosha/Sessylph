@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-adopt Claude Code features into Sessylph
 # Runs daily via launchd, checks for new Claude Code versions,
-# analyzes changelog, implements changes, and creates draft PRs.
+# analyzes changelog, implements changes, and creates PRs.
 set -euo pipefail
 
 # --- PATH setup for launchd environment ---
@@ -15,9 +15,56 @@ WORKTREE_DIR="/tmp/sessylph-auto-adopt"
 WORKSPACE_NAME="auto-adopt"
 MAX_RETRIES=3
 
+SLACK_WEBHOOK_FILE="$STATE_DIR/slack-webhook-url.txt"
+CHANGELOG_URL="https://github.com/anthropics/claude-code/releases"
+
 mkdir -p "$STATE_DIR"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S'): $*" >> "$LOG_FILE"; }
+
+# --- Slack notification ---
+# Reads webhook URL from file. Silently skips if file doesn't exist.
+notify_slack() {
+  local color="$1"  # good / warning / danger
+  local title="$2"
+  local body="$3"
+
+  local webhook_url
+  webhook_url=$(cat "$SLACK_WEBHOOK_FILE" 2>/dev/null) || return 0
+  [ -n "$webhook_url" ] || return 0
+
+  # Interpret \n as actual newlines, then JSON-escape for the payload
+  # python3 failure must not abort the pipeline under set -e
+  local escaped_title escaped_body
+  escaped_title=$(printf '%b' "$title" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read())[1:-1])') || { log "WARNING: python3 not available for Slack notification"; return 0; }
+  escaped_body=$(printf '%b' "$body" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read())[1:-1])') || return 0
+
+  local payload
+  payload=$(cat <<ENDJSON
+{
+  "attachments": [{
+    "color": "${color}",
+    "blocks": [
+      {"type": "header", "text": {"type": "plain_text", "text": "${escaped_title}"}},
+      {"type": "section", "text": {"type": "mrkdwn", "text": "${escaped_body}"}}
+    ]
+  }]
+}
+ENDJSON
+)
+
+  local http_code
+  http_code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$webhook_url" \
+    -H 'Content-Type: application/json' \
+    -d "$payload" 2>>"$LOG_FILE") || {
+    log "WARNING: Slack notification failed (curl error)"
+    return 0
+  }
+  if [ "$http_code" != "200" ]; then
+    log "WARNING: Slack notification returned HTTP $http_code"
+  fi
+  _SLACK_NOTIFIED=1
+}
 
 # --- Lockfile to prevent concurrent execution ---
 LOCKFILE="$STATE_DIR/auto-adopt.lock"
@@ -45,6 +92,7 @@ PROMPT_FILE=""
 BUILD_LOG=""
 ISSUE_BODY_FILE=""
 PR_BODY_FILE=""
+_SLACK_NOTIFIED=0  # Set to 1 after sending a specific Slack notification
 
 cleanup_worktree() {
   cd "$REPO_DIR" || return 1
@@ -64,6 +112,11 @@ cleanup() {
   fi
   if [ $exit_code -ne 0 ]; then
     log "ERROR: Script exited with code $exit_code"
+    # Only send catch-all if no specific notification was already sent
+    if [ "$_SLACK_NOTIFIED" -eq 0 ]; then
+      notify_slack "danger" "Auto-Adopt Pipeline Failed (exit $exit_code)" \
+        "Unexpected error in auto-adopt pipeline.\nCheck log: \`~/.local/share/sessylph-auto-adopt/auto-adopt.log\`" 2>/dev/null || true
+    fi
   fi
   exit $exit_code
 }
@@ -182,6 +235,8 @@ echo "$RELEASE_NOTES" >> "$PROMPT_FILE"
 if ! RESULT=$(claude -p --dangerously-skip-permissions \
   --model sonnet --max-budget-usd 5 < "$PROMPT_FILE" 2>>"$LOG_FILE"); then
   log "ERROR: claude CLI failed for v${CURRENT}"
+  notify_slack "danger" "Claude Code v${CURRENT} — Pipeline Error" \
+    "Claude CLI failed during changelog analysis for v${LAST} → v${CURRENT}.\nCheck log: \`~/.local/share/sessylph-auto-adopt/auto-adopt.log\`"
   exit 1
 fi
 rm -f "$PROMPT_FILE"
@@ -191,6 +246,8 @@ PROMPT_FILE=""
 # Check BEFORE truncation so the marker isn't cut off
 if echo "$RESULT" | grep -q "NO_ACTIONABLE_CHANGES"; then
   log "No actionable changes in v${CURRENT}"
+  notify_slack "good" "Claude Code v${CURRENT} — No Changes Needed" \
+    "New version released (v${LAST} → v${CURRENT}) but no actionable changes for Sessylph.\n\n<${CHANGELOG_URL}/tag/v${CURRENT}|View changelog>"
   echo "$CURRENT" > "$VERSION_FILE"
   exit 0
 fi
@@ -219,6 +276,8 @@ DIFF_STAT=$(jj diff --stat 2>>"$LOG_FILE") || {
 }
 if [ -z "$DIFF_STAT" ]; then
   log "Claude found no changes to make for v${CURRENT}"
+  notify_slack "good" "Claude Code v${CURRENT} — No Changes Needed" \
+    "New version released (v${LAST} → v${CURRENT}). Claude analyzed the changelog but found no code changes needed.\n\n<${CHANGELOG_URL}/tag/v${CURRENT}|View changelog>"
   echo "$CURRENT" > "$VERSION_FILE"
   exit 0
 fi
@@ -245,6 +304,8 @@ if ! xcodebuild -scheme Sessylph -configuration Debug \
   fi
   if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
     log "ERROR: v${CURRENT} failed $MAX_RETRIES times, skipping"
+    notify_slack "danger" "Claude Code v${CURRENT} — Giving Up" \
+      "Build failed ${MAX_RETRIES} times. v${CURRENT} will be skipped permanently.\nManual intervention required.\n\n<${CHANGELOG_URL}/tag/v${CURRENT}|Changelog>"
     echo "$CURRENT" > "$VERSION_FILE"
     rm -f "$RETRY_FILE"
     exit 1
@@ -279,14 +340,22 @@ if ! xcodebuild -scheme Sessylph -configuration Debug \
       echo "Auto-adopt pipeline detected actionable changes but the build failed."
     } > "$ISSUE_BODY_FILE"
 
-    if ! gh issue create --repo "$GH_REPO" \
+    if ISSUE_URL=$(gh issue create --repo "$GH_REPO" \
       --title "auto-adopt: Claude Code v${CURRENT} build failed" \
       --body-file "$ISSUE_BODY_FILE" \
-      --label "auto-adopt" 2>>"$LOG_FILE"; then
+      --label "auto-adopt" 2>>"$LOG_FILE"); then
+      log "Created issue for build failure: $ISSUE_URL"
+      notify_slack "danger" "Claude Code v${CURRENT} — Build Failed" \
+        "Auto-adopt build failed (retry $((RETRY_COUNT + 1))/${MAX_RETRIES}).\n\n<${ISSUE_URL}|View issue> · <${CHANGELOG_URL}/tag/v${CURRENT}|Changelog>"
+    else
       log "ERROR: Failed to create GitHub issue for build failure"
+      notify_slack "danger" "Claude Code v${CURRENT} — Build Failed" \
+        "Auto-adopt build failed (retry $((RETRY_COUNT + 1))/${MAX_RETRIES}). Issue creation also failed.\n\n<${CHANGELOG_URL}/tag/v${CURRENT}|Changelog>"
     fi
   else
     log "Issue #${EXISTING_ISSUE} already exists for v${CURRENT}, skipping issue creation"
+    notify_slack "danger" "Claude Code v${CURRENT} — Build Failed (retry)" \
+      "Auto-adopt build still failing (retry $((RETRY_COUNT + 1))/${MAX_RETRIES}).\n\nExisting issue: <https://github.com/${GH_REPO}/issues/${EXISTING_ISSUE}|#${EXISTING_ISSUE}>"
   fi
 
   exit 1
@@ -340,16 +409,23 @@ PR_BODY_FILE=$(mktemp)
   echo "Changelog: https://github.com/anthropics/claude-code/releases"
 } > "$PR_BODY_FILE"
 
-if ! gh pr create --draft --repo "$GH_REPO" \
+if ! PR_URL=$(gh pr create --repo "$GH_REPO" \
   --title "auto-adopt: Claude Code v${LAST} → v${CURRENT}" \
   --head "$BRANCH_NAME" \
   --label "auto-adopt" \
-  --body-file "$PR_BODY_FILE" 2>>"$LOG_FILE"; then
+  --body-file "$PR_BODY_FILE" 2>>"$LOG_FILE"); then
   log "ERROR: Branch $BRANCH_NAME was pushed but PR creation failed (check that 'auto-adopt' label exists)"
   log "Will retry on next run"
+  notify_slack "warning" "Claude Code v${CURRENT} — PR Creation Failed" \
+    "Branch \`${BRANCH_NAME}\` pushed but PR creation failed. Manual intervention needed.\n\n<${CHANGELOG_URL}/tag/v${CURRENT}|Changelog>"
   exit 1
 fi
-log "Created draft PR for v${CURRENT}"
+log "Created PR for v${CURRENT}: $PR_URL"
+
+# Summarize changes for Slack (truncate to 6 lines to keep message compact)
+DIFF_SUMMARY=$(echo "$DIFF_STAT" | head -6)
+notify_slack "good" "Claude Code v${LAST} → v${CURRENT} — PR Created" \
+  "<${PR_URL}|View PR>\n\n\`\`\`\n${DIFF_SUMMARY}\n\`\`\`\n\n<${CHANGELOG_URL}/tag/v${CURRENT}|Changelog>"
 
 # --- 8. Update version tracking ---
 echo "$CURRENT" > "$VERSION_FILE"

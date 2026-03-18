@@ -1,6 +1,6 @@
 # Auto-Adopt Claude Code Features
 
-Automated pipeline that monitors Claude Code releases and creates draft PRs when new features can be integrated into Sessylph.
+Automated pipeline that monitors Claude Code releases and creates PRs when new features can be integrated into Sessylph.
 
 ## How It Works
 
@@ -15,7 +15,7 @@ Daily (9:00 JST via launchd)
       ├─ Create isolated jj worktree (separate working copy — main workspace unaffected)
       ├─ Claude Code CLI analyzes changelog & implements changes
       ├─ xcodegen + xcodebuild for build verification
-      ├─ Build passes → draft PR
+      ├─ Build passes → PR
       ├─ Build fails → GitHub Issue (deduplicated, max 3 retries)
       └─ Cleanup worktree
 ```
@@ -27,6 +27,7 @@ Daily (9:00 JST via launchd)
 - **Failure reporting**: Build failures create GitHub Issues with Claude's analysis and build error logs
 - **Retry with limits**: Failed versions are retried up to 3 times, with duplicate issue prevention
 - **Robust error handling**: `trap EXIT` cleanup, command existence checks, error logging at every step
+- **Slack notifications**: Reports all outcomes — new version with no changes, PR created, build failures, and pipeline errors
 
 ## Setup
 
@@ -45,15 +46,20 @@ Designed for an always-on Mac (e.g., Mac Studio) running scheduled tasks.
 mkdir -p ~/.local/share/sessylph-auto-adopt
 npm view @anthropic-ai/claude-code version > ~/.local/share/sessylph-auto-adopt/last-version.txt
 
-# 2. Create GitHub label (one-time)
+# 2. (Optional) Set up Slack notifications
+#    Create a Slack app with Incoming Webhook: https://api.slack.com/apps
+#    Save the webhook URL:
+echo "https://hooks.slack.com/services/YOUR/WEBHOOK/URL" > ~/.local/share/sessylph-auto-adopt/slack-webhook-url.txt
+
+# 3. Create GitHub label (one-time)
 gh label create auto-adopt --color 0E8A16 --description "Auto-adopted from upstream"
 
-# 3. Install launchd agent (replace placeholders with actual paths)
+# 4. Install launchd agent (replace placeholders with actual paths)
 sed -e "s|__REPO_DIR__|$(pwd)|g" -e "s|__HOME_DIR__|$HOME|g" \
   sh.saqoo.sessylph.auto-adopt.plist > ~/Library/LaunchAgents/sh.saqoo.sessylph.auto-adopt.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.saqoo.sessylph.auto-adopt.plist
 
-# 4. Verify
+# 5. Verify
 launchctl list | grep sessylph
 ```
 
@@ -76,6 +82,7 @@ launchctl list | grep sessylph
 ~/.local/share/sessylph-auto-adopt/
 ├── last-version.txt        # Last checked version number
 ├── auto-adopt.log          # Execution log
+├── slack-webhook-url.txt   # Slack Incoming Webhook URL (optional)
 └── retry-count-X.Y.Z.txt  # Retry counter per version (auto-cleaned)
 ```
 
