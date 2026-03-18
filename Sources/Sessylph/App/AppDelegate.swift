@@ -103,7 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         Task {
-            await TabManager.shared.newTab(directory: url, in: NSApp.keyWindow)
+            let targetWindow = NSApp.keyWindow.flatMap { window in
+                TabManager.shared.windowControllers.contains(where: { $0.window === window }) ? window : nil
+            }
+            await TabManager.shared.newTab(directory: url, in: targetWindow)
         }
         return true
     }
@@ -173,7 +176,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Menu Actions
 
     @objc private func newTab(_ sender: Any?) {
-        TabManager.shared.newTab(in: NSApp.keyWindow)
+        // Don't add tabs to the Settings window
+        let targetWindow = NSApp.keyWindow.flatMap { window in
+            TabManager.shared.windowControllers.contains(where: { $0.window === window }) ? window : nil
+        }
+        TabManager.shared.newTab(in: targetWindow)
     }
 
     @objc private func openFolder(_ sender: Any?) {
