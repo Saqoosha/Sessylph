@@ -214,6 +214,27 @@ actor ClaudeSessionHistory {
                 }
             }
 
+            // When single-segment fallback doesn't exist either, the remaining
+            // segments likely form one hyphenated directory name whose encoding
+            // lost information (e.g. dots). Join them all as one component,
+            // then try to find the actual directory by fuzzy-matching in the parent.
+            if bestLen == 1, !fm.fileExists(atPath: resolved + "/" + segments[i]) {
+                let remaining = segments[i...].joined(separator: "-")
+                // Check parent dir for an entry that matches with dots restored
+                // e.g. "whatever-co-2021" → "whatever.co-2021"
+                if let entries = try? fm.contentsOfDirectory(atPath: resolved) {
+                    let normalized = remaining.replacingOccurrences(of: ".", with: "-")
+                    if let match = entries.first(where: {
+                        $0.replacingOccurrences(of: ".", with: "-") == normalized
+                    }) {
+                        resolved += "/" + match
+                        break
+                    }
+                }
+                resolved += "/" + remaining
+                break
+            }
+
             let component = segments[i..<(i + bestLen)].joined(separator: "-")
             resolved += "/" + component
             i += bestLen
