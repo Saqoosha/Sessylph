@@ -40,6 +40,7 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         super.init(frame: frame)
         wantsLayer = true
         setupScrollbar()
+        registerForDraggedTypes([.fileURL])
     }
 
     @available(*, unavailable)
@@ -558,6 +559,36 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     func feedText(_ text: String) {
         guard let surface else { return }
         ghostty_surface_text(surface, text, UInt(text.utf8.count))
+    }
+
+    // MARK: - Drag and Drop
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        guard sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) else {
+            return []
+        }
+        return .copy
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard let surface else { return false }
+        guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
+              !urls.isEmpty else {
+            return false
+        }
+
+        let escaped = urls.map { shellEscapePath($0.path) }.joined(separator: " ")
+        escaped.withCString { cStr in
+            ghostty_surface_text(surface, cStr, UInt(escaped.utf8.count))
+        }
+        return true
+    }
+
+    /// Shell-escape a file path for safe pasting into a terminal.
+    private func shellEscapePath(_ path: String) -> String {
+        // Single-quote the path, escaping any embedded single quotes
+        let escaped = path.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
     }
 
     /// Sends a command string to the terminal and executes it.
