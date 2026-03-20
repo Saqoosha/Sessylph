@@ -15,6 +15,8 @@ struct ClaudeCodeOptions: Codable, Sendable {
     var additionalDirs: [String]? = nil
     var mcpConfigs: [String]? = nil
     var effortLevel: String? = nil
+    var bare: Bool = false
+    var channels: [String]? = nil
 
     init() {}
 
@@ -96,6 +98,17 @@ struct ClaudeCodeOptions: Codable, Sendable {
                 parts.append("--mcp-config")
                 parts.append(shellQuote(config))
             }
+        }
+
+        if let channels, !channels.isEmpty {
+            for channel in channels {
+                parts.append("--channels")
+                parts.append(shellQuote(channel))
+            }
+        }
+
+        if bare {
+            parts.append("--bare")
         }
 
         if let hookSettingsPath {
