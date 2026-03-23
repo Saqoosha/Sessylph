@@ -30,6 +30,9 @@ protocol ClaudeStateTrackerDelegate: AnyObject {
 
 // MARK: - ClaudeStateTracker
 
+/// Tracks terminal title state for all supported CLI types (Claude Code, Codex, Cursor Agent).
+/// Parses CLI-specific title formats to determine idle/working status and fires completion notifications.
+/// Named `ClaudeStateTracker` for historical reasons — originally Claude Code only.
 @MainActor
 final class ClaudeStateTracker {
 
@@ -103,7 +106,9 @@ final class ClaudeStateTracker {
         return (.unknown, rawTitle)
     }
 
-    /// Cursor Agent: Claude-style titles, plus braille anywhere in the string and common status words.
+    /// Parses Cursor Agent terminal titles. Falls back through:
+    /// (1) Claude Code title format (prefix-based), (2) braille spinner anywhere in string,
+    /// (3) status keywords ("thinking", "generating"). Returns `.unknown` if no working indicator found.
     static func parseCursorAgentTitle(_ rawTitle: String) -> (state: ClaudeState, taskDescription: String) {
         let claude = parseClaudeTitle(rawTitle)
         if claude.state != .unknown {
@@ -117,13 +122,14 @@ final class ClaudeStateTracker {
         if lower.contains("thinking") || lower.contains("generating") {
             return (.working, stripBrailleScalars(rawTitle).trimmingCharacters(in: .whitespaces))
         }
-        return (.idle, "")
+        return (.unknown, rawTitle)
     }
 
     private static func stripBrailleScalars(_ s: String) -> String {
         String(s.unicodeScalars.filter { $0.value < 0x2800 || $0.value > 0x28FF })
     }
 
+    /// Dispatches to the appropriate CLI-specific title parser based on `cliType`.
     static func parseTitle(_ rawTitle: String, cliType: CLIType) -> (state: ClaudeState, taskDescription: String) {
         switch cliType {
         case .claudeCode:

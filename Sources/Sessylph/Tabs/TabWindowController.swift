@@ -18,8 +18,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
     private var terminalVC: TerminalViewController?
     var lastTaskDescription: String { stateTracker.lastTaskDescription }
-    /// The last task description observed while Claude was actively working.
-    /// Retained across idle transitions so notifications can reference the completed task.
+    /// Forwarded from the state tracker.
     var lastWorkingTaskDescription: String { stateTracker.lastWorkingTaskDescription }
     private var stateTracker: ClaudeStateTracker!
     private static let claudeOrange = NSColor(srgbRed: 0xD9/255.0, green: 0x78/255.0, blue: 0x58/255.0, alpha: 1.0)
@@ -245,6 +244,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             case .cursorAgent(let options):
                 let cursorAgentPath = try CursorAgentCLI.cursorAgentPath()
                 command = options.buildCommand(cursorAgentPath: cursorAgentPath)
+                logger.info("Cursor Agent session uses title-based notifications (no hook support)")
 
             case .remoteAttach(_, _):
                 // No session creation needed — just attach to existing
@@ -361,8 +361,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     func stateTrackerDidCompleteTask(_ tracker: ClaudeStateTracker) {
-        // Remote: no hooks. Local Cursor Agent: no Codex/Claude-style notify flag — use title-based detection.
-        // Other local sessions use hook-based notifications via sessylph-notifier.
+        // Remote sessions have no hook bridge (sessylph-notifier is local only).
+        // Local Cursor Agent lacks a --notify flag — both use title-based working→idle detection instead.
         guard session.isRemote || session.cliType == .cursorAgent else { return }
 
         let taskDescription = tracker.lastWorkingTaskDescription
