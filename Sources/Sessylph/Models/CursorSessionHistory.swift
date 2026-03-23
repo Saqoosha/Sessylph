@@ -1,5 +1,8 @@
 import CryptoKit
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "CursorSessionHistory")
 
 // MARK: - Cursor Session Entry
 
@@ -13,7 +16,8 @@ struct CursorSessionEntry: Identifiable, Sendable {
 
 // MARK: - Cursor Session History
 
-/// Loads recent Cursor Agent chats from `~/.cursor/chats/<workspaceMD5>/<chatId>/store.db` metadata.
+/// Provides access to recent Cursor Agent chat sessions.
+/// Parses session metadata from `~/.cursor/chats/`, where workspace directories are named by MD5 hash of the absolute project path.
 actor CursorSessionHistory {
     static let shared = CursorSessionHistory()
 
@@ -22,8 +26,9 @@ actor CursorSessionHistory {
     private static let cacheInterval: TimeInterval = 30
     private static let maxSessionsToParse = 50
     /// Cursor encodes `/` as `-` in `~/.cursor/projects` folder names. Naive reverse breaks when a path segment contains `-`.
-    /// We enumerate contiguous token groupings (2^(n-1) variants for n tokens); cap avoids pathological cost.
-    private static let maxHyphenTokensForPartition = 22
+    /// We enumerate contiguous token groupings (2^(n-1) variants for n tokens).
+    /// Cap of 15 tokens yields up to 2^14 (~16K) candidates; beyond this, falls back to naive slash replacement.
+    private static let maxHyphenTokensForPartition = 15
 
     func loadSessions(forceRefresh: Bool = false) async -> [CursorSessionEntry] {
         if !forceRefresh, Date().timeIntervalSince(lastLoadTime) < Self.cacheInterval {
@@ -112,15 +117,19 @@ actor CursorSessionHistory {
     }
 
     private static func readMetaZero(from dbURL: URL) -> Data? {
-        guard let sqlite3 = sqlite3ExecutableURL() else { return nil }
+        guard let sqlite3 = sqlite3ExecutableURL() else {
+            logger.warning("sqlite3 not found — cannot read Cursor session history")
+            return nil
+        }
         let process = Process()
         process.executableURL = sqlite3
         process.arguments = [dbURL.path, "SELECT value FROM meta WHERE key='0';"]
         process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
 
         do {
             try process.run()
@@ -128,9 +137,17 @@ actor CursorSessionHistory {
             return nil
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
+        guard process.terminationStatus == 0 else {
+            if let errStr = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !errStr.isEmpty
+            {
+                logger.warning("sqlite3 failed for \(dbURL.lastPathComponent): \(errStr)")
+            }
+            return nil
+        }
 
         let raw = String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

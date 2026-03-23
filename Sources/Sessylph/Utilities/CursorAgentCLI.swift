@@ -1,5 +1,9 @@
 import Foundation
+import os.log
 
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "CursorAgentCLI")
+
+/// Resolves and interacts with the `cursor-agent` CLI executable for path discovery, version checking, and option parsing.
 enum CursorAgentCLI {
     /// Resolves the path to the `cursor-agent` executable.
     static func cursorAgentPath() throws -> String {
@@ -29,9 +33,9 @@ enum CursorAgentCLI {
     // MARK: - CLI Options Discovery
 
     struct CLIOptions: Sendable {
-        var models: [String]
-        var modes: [String]
-        var sandboxModes: [String]
+        let models: [String]
+        let modes: [String]
+        let sandboxModes: [String]
     }
 
     /// Known modes as fallback.
@@ -40,17 +44,24 @@ enum CursorAgentCLI {
     /// Known sandbox modes as fallback.
     private static let knownSandboxModes = ["enabled", "disabled"]
 
-    /// Parses `cursor-agent --help` for mode/sandbox; models come from `--list-models` (same source as IDE account).
+    /// Parses `cursor-agent --help` for mode/sandbox; models come from `--list-models` (user's account-specific list).
     static func discoverCLIOptions() -> CLIOptions {
         let models: [String]
         if let listText = runListModels(), !listText.isEmpty {
             let parsed = parseModelsFromListOutput(listText)
-            models = parsed.isEmpty ? fallbackModels : parsed
+            if parsed.isEmpty {
+                logger.info("cursor-agent --list-models returned unparseable output, using fallback models")
+                models = fallbackModels
+            } else {
+                models = parsed
+            }
         } else {
+            logger.info("cursor-agent --list-models unavailable, using fallback models")
             models = fallbackModels
         }
 
         guard let helpText = runHelp() else {
+            logger.info("cursor-agent --help unavailable, using fallback modes/sandbox values")
             return CLIOptions(models: models, modes: knownModes, sandboxModes: knownSandboxModes)
         }
 
@@ -59,7 +70,7 @@ enum CursorAgentCLI {
         return CLIOptions(models: models, modes: modes, sandboxModes: sandboxModes)
     }
 
-    /// Runs `cursor-agent --list-models` (account-specific list; includes Composer 2 Fast, etc.).
+    /// Runs `cursor-agent --list-models` to fetch the user's available models.
     private static func runListModels() -> String? {
         guard let path = try? cursorAgentPath() else { return nil }
         let process = Process()
@@ -73,7 +84,7 @@ enum CursorAgentCLI {
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = pipe
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
@@ -85,11 +96,12 @@ enum CursorAgentCLI {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
 
-        let combined = stripANSIEscapeCodes(String(data: data, encoding: .utf8) ?? "")
-        return combined.isEmpty ? nil : combined
+        let output = stripANSIEscapeCodes(String(data: data, encoding: .utf8) ?? "")
+        return output.isEmpty ? nil : output
     }
 
-    /// Lines look like `composer-2-fast - Composer 2 Fast  (current)`.
+    /// Parses model list output. Lines look like `composer-2-fast - Composer 2 Fast  (current)`;
+    /// only the portion before ` - ` is extracted as the model ID.
     private static func parseModelsFromListOutput(_ text: String) -> [String] {
         var models: [String] = []
         var seen = Set<String>()
@@ -106,18 +118,12 @@ enum CursorAgentCLI {
         return models
     }
 
+    // swiftlint:disable:next force_try
+    private static let ansiRegex = try! NSRegularExpression(pattern: #"\u{1B}\[[0-9;]*[A-Za-z]"#, options: [])
+
     private static func stripANSIEscapeCodes(_ string: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\u{1B}\[[0-9;]*[A-Za-z]"#, options: []) else {
-            return string
-        }
-        var result = string
-        for _ in 0..<32 {
-            let range = NSRange(result.startIndex..., in: result)
-            let next = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "")
-            if next == result { break }
-            result = next
-        }
-        return result
+        let range = NSRange(string.startIndex..., in: string)
+        return ansiRegex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: "")
     }
 
     private static func runHelp() -> String? {

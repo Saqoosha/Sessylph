@@ -31,7 +31,7 @@ enum CodexCLI {
     // MARK: - CLI Options Discovery
 
     struct CLIOptions: Sendable {
-        var approvalModes: [String]
+        let approvalModes: [String]
     }
 
     /// Known approval modes as fallback.

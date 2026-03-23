@@ -1,16 +1,20 @@
 import Foundation
 
+/// Configuration options for the Cursor Agent CLI. Maps to `cursor-agent` command-line flags.
 struct CursorAgentOptions: Codable, Sendable {
     var model: String?
+    /// Execution mode: "plan" (read-only) or "ask" (Q&A). Nil = default agent mode.
     var mode: String?
     var continueSession: Bool = false
     var resumeSessionId: String? = nil
+    /// Force-approve commands unless explicitly denied.
     var force: Bool = false
+    /// Sandbox mode: "enabled" or "disabled". Nil = CLI default.
     var sandbox: String?
 
     init() {}
 
-    /// Builds the full cursor-agent command string for tmux send-keys.
+    /// Builds the full cursor-agent command string.
     func buildCommand(cursorAgentPath: String) -> String {
         var parts: [String] = [shellQuote(cursorAgentPath)]
 

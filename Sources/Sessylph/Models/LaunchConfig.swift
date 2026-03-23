@@ -6,7 +6,7 @@ enum LaunchConfig {
     case cursorAgent(CursorAgentOptions)
     /// Attach to an existing remote tmux session
     case remoteAttach(RemoteHost, sessionName: String)
-    /// Create a new Claude Code session on a remote host
+    /// Create a new session on a remote host (currently Claude Code only — Codex/Cursor Agent lack remote launch support)
     case remoteNewSession(RemoteHost, directory: String, ClaudeCodeOptions)
 
     static func defaultFromUserDefaults() -> LaunchConfig {
