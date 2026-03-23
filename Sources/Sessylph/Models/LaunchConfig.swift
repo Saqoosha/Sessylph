@@ -3,6 +3,7 @@ import Foundation
 enum LaunchConfig {
     case claudeCode(ClaudeCodeOptions)
     case codex(CodexOptions)
+    case cursorAgent(CursorAgentOptions)
     /// Attach to an existing remote tmux session
     case remoteAttach(RemoteHost, sessionName: String)
     /// Create a new Claude Code session on a remote host
@@ -37,6 +38,18 @@ enum LaunchConfig {
                 }
             }
             return .codex(options)
+
+        case .cursorAgent:
+            var options = CursorAgentOptions()
+            let model = defaults.string(forKey: Defaults.cursorAgentModel) ?? ""
+            let mode = defaults.string(forKey: Defaults.cursorAgentMode) ?? ""
+            let sandbox = defaults.string(forKey: Defaults.cursorAgentSandbox) ?? ""
+            options.model = model.isEmpty ? nil : model
+            options.mode = mode.isEmpty ? nil : mode
+            options.sandbox = sandbox.isEmpty ? nil : sandbox
+            options.continueSession = defaults.bool(forKey: Defaults.cursorAgentContinueSession)
+            options.force = defaults.bool(forKey: Defaults.cursorAgentForce)
+            return .cursorAgent(options)
         }
     }
 }

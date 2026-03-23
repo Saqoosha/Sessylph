@@ -8,7 +8,8 @@ enum EnvironmentBuilder {
     /// Environment variables that must not be propagated to child processes.
     /// CLAUDECODE: Claude Code sets this to detect nested sessions; if propagated,
     /// it prevents launching new Claude Code instances in tmux sessions.
-    private static let filteredKeys: Set<String> = ["CLAUDECODE"]
+    /// CURSOR_CLI: Cursor CLI / agent uses this for nested-invocation detection (same class of issue).
+    private static let filteredKeys: Set<String> = ["CLAUDECODE", "CURSOR_CLI"]
 
     private struct Cache {
         var environment: [String]?

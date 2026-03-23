@@ -45,6 +45,7 @@ final class ClaudeStateTracker {
     private var sessionName: String
     private var remoteHost: RemoteHost?
     private var isRunning: () -> Bool
+    private let cliType: CLIType
 
     private var titlePollTimer: Timer?
     private var lastPolledTitle: String?
@@ -54,10 +55,16 @@ final class ClaudeStateTracker {
 
     // MARK: - Initialization
 
-    init(sessionName: String, remoteHost: RemoteHost? = nil, isRunning: @escaping () -> Bool) {
+    init(
+        sessionName: String,
+        remoteHost: RemoteHost? = nil,
+        isRunning: @escaping () -> Bool,
+        cliType: CLIType = .claudeCode
+    ) {
         self.sessionName = sessionName
         self.remoteHost = remoteHost
         self.isRunning = isRunning
+        self.cliType = cliType
     }
 
     /// Update the tmux session name (e.g. after a rename).
@@ -96,12 +103,40 @@ final class ClaudeStateTracker {
         return (.unknown, rawTitle)
     }
 
+    /// Cursor Agent: Claude-style titles, plus braille anywhere in the string and common status words.
+    static func parseCursorAgentTitle(_ rawTitle: String) -> (state: ClaudeState, taskDescription: String) {
+        let claude = parseClaudeTitle(rawTitle)
+        if claude.state != .unknown {
+            return claude
+        }
+        if rawTitle.unicodeScalars.contains(where: { $0.value >= 0x2800 && $0.value <= 0x28FF }) {
+            let rest = rawTitle.trimmingCharacters(in: .whitespaces)
+            return (.working, rest)
+        }
+        let lower = rawTitle.lowercased()
+        if lower.contains("thinking") || lower.contains("generating") {
+            return (.working, rawTitle.trimmingCharacters(in: .whitespaces))
+        }
+        return (.idle, "")
+    }
+
+    static func parseTitle(_ rawTitle: String, cliType: CLIType) -> (state: ClaudeState, taskDescription: String) {
+        switch cliType {
+        case .claudeCode:
+            return parseClaudeTitle(rawTitle)
+        case .codex:
+            return parseClaudeTitle(rawTitle)
+        case .cursorAgent:
+            return parseCursorAgentTitle(rawTitle)
+        }
+    }
+
     // MARK: - Title Update
 
     /// Called when a new title is received (from polling or terminal callback).
     func updateTitle(from rawTitle: String) {
         lastPolledTitle = rawTitle
-        let (state, taskDesc) = Self.parseClaudeTitle(rawTitle)
+        let (state, taskDesc) = Self.parseTitle(rawTitle, cliType: cliType)
         let previousState = claudeState
         claudeState = state
 
