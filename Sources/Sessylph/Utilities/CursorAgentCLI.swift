@@ -119,7 +119,7 @@ enum CursorAgentCLI {
     }
 
     // swiftlint:disable:next force_try
-    private static let ansiRegex = try! NSRegularExpression(pattern: #"\u{1B}\[[0-9;]*[A-Za-z]"#, options: [])
+    private static let ansiRegex = try! NSRegularExpression(pattern: "\u{1B}\\[[0-9;]*[A-Za-z]", options: [])
 
     private static func stripANSIEscapeCodes(_ string: String) -> String {
         let range = NSRange(string.startIndex..., in: string)
