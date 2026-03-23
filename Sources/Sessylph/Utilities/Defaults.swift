@@ -13,6 +13,13 @@ enum Defaults {
     static let codexFullAuto = "codexFullAuto"
     static let codexDangerouslyBypass = "codexDangerouslyBypass"
 
+    // MARK: - Cursor Agent
+    static let cursorAgentModel = "cursorAgentModel"
+    static let cursorAgentMode = "cursorAgentMode"
+    static let cursorAgentContinueSession = "cursorAgentContinueSession"
+    static let cursorAgentForce = "cursorAgentForce"
+    static let cursorAgentSandbox = "cursorAgentSandbox"
+
     // MARK: - Appearance
     static let terminalFontName = "terminalFontName"
     static let terminalFontSize = "terminalFontSize"

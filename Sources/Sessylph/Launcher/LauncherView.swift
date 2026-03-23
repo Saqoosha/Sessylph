@@ -54,6 +54,12 @@ struct LauncherView: View {
     @AppStorage(Defaults.codexApprovalMode) private var codexApprovalMode = "on-request"
     @AppStorage(Defaults.codexFullAuto) private var codexFullAuto = false
     @AppStorage(Defaults.codexDangerouslyBypass) private var codexDangerouslyBypass = false
+    // Cursor Agent options
+    @AppStorage(Defaults.cursorAgentModel) private var cursorAgentModel = ""
+    @AppStorage(Defaults.cursorAgentMode) private var cursorAgentMode = ""
+    @AppStorage(Defaults.cursorAgentContinueSession) private var cursorAgentContinueSession = false
+    @AppStorage(Defaults.cursorAgentForce) private var cursorAgentForce = false
+    @AppStorage(Defaults.cursorAgentSandbox) private var cursorAgentSandbox = ""
 
     @State private var selectedDirectory: URL?
     @State private var recentDirectories: [URL] = []
@@ -61,9 +67,11 @@ struct LauncherView: View {
     @State private var isLaunching = false
     @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
     @State private var codexCLIOptions = CodexCLI.CLIOptions(approvalModes: [])
+    @State private var cursorAgentCLIOptions = CursorAgentCLI.CLIOptions(models: [], modes: [], sandboxModes: [])
     @State private var searchText = ""
     @State private var ccSessions: [ClaudeSessionEntry] = []
     @State private var codexSessions: [CodexSessionEntry] = []
+    @State private var cursorSessions: [CursorSessionEntry] = []
     @State private var hoveredSessionId: String?
     @State private var isDropTargeted = false
 
@@ -156,16 +164,20 @@ struct LauncherView: View {
             Task.detached {
                 let claude = ClaudeCLI.discoverCLIOptions()
                 let codex = CodexCLI.discoverCLIOptions()
+                let cursor = CursorAgentCLI.discoverCLIOptions()
                 await MainActor.run {
                     cliOptions = claude
                     codexCLIOptions = codex
+                    cursorAgentCLIOptions = cursor
                 }
             }
             Task {
                 async let claudeSessions = ClaudeSessionHistory.shared.loadSessions()
                 async let codexSessions = CodexSessionHistory.shared.loadSessions()
+                async let cursorChats = CursorSessionHistory.shared.loadSessions()
                 ccSessions = await claudeSessions
                 self.codexSessions = await codexSessions
+                cursorSessions = await cursorChats
             }
         }
     }
@@ -212,10 +224,13 @@ struct LauncherView: View {
             .pickerStyle(.segmented)
             .fixedSize()
 
-            if cliType == .claudeCode {
+            switch cliType {
+            case .claudeCode:
                 claudeCodeOptions
-            } else {
+            case .codex:
                 codexOptionsView
+            case .cursorAgent:
+                cursorAgentOptionsView
             }
         }
     }
@@ -323,6 +338,60 @@ struct LauncherView: View {
                     }
                 }
             }
+        }
+        .frame(minHeight: 94, alignment: .top)
+    }
+
+    private var cursorAgentOptionsView: some View {
+        VStack(spacing: 12) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Model:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    ComboBox(
+                        items: cursorAgentCLIOptions.models,
+                        text: $cursorAgentModel,
+                        placeholder: "Default"
+                    )
+                    .frame(width: 180, height: 24)
+                }
+
+                GridRow {
+                    Text("Mode:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $cursorAgentMode) {
+                        Text("Agent").tag("")
+                        ForEach(cursorAgentCLIOptions.modes, id: \.self) { mode in
+                            Text(mode.prefix(1).uppercased() + mode.dropFirst()).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+
+                GridRow {
+                    Text("Sandbox:")
+                        .foregroundStyle(.secondary)
+                        .gridColumnAlignment(.trailing)
+                    Picker("", selection: $cursorAgentSandbox) {
+                        Text("Default").tag("")
+                        ForEach(cursorAgentCLIOptions.sandboxModes, id: \.self) { mode in
+                            Text(mode.prefix(1).uppercased() + mode.dropFirst()).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
+
+            HStack(spacing: 16) {
+                Toggle("Force approve", isOn: $cursorAgentForce)
+                Toggle("Continue session", isOn: $cursorAgentContinueSession)
+            }
+            .toggleStyle(.checkbox)
+            .frame(maxWidth: .infinity)
         }
         .frame(minHeight: 94, alignment: .top)
     }
@@ -462,6 +531,24 @@ struct LauncherView: View {
         }
     }
 
+    private var filteredCursorSessions: [CursorSessionEntry] {
+        guard !searchText.isEmpty else { return cursorSessions }
+        let query = searchText.lowercased()
+        return cursorSessions.filter { session in
+            session.title.lowercased().contains(query)
+                || session.projectName.lowercased().contains(query)
+                || session.projectPath.lowercased().contains(query)
+        }
+    }
+
+    private var sessionsListTitle: String {
+        switch cliType {
+        case .claudeCode: return "Claude Sessions"
+        case .codex: return "Codex Sessions"
+        case .cursorAgent: return "Cursor Chats"
+        }
+    }
+
     private var listsSection: some View {
         HStack(alignment: .top, spacing: 20) {
             // Recent directories (left)
@@ -487,38 +574,49 @@ struct LauncherView: View {
 
             // Sessions (right)
             VStack(alignment: .leading, spacing: 8) {
-                Text(cliType == .claudeCode ? "Claude Sessions" : "Codex Sessions")
+                Text(sessionsListTitle)
                     .font(.headline)
 
-                if cliType == .claudeCode {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(Array(filteredSessions.enumerated()), id: \.element.id) { index, session in
-                                sessionRow(session)
-                                if index < filteredSessions.count - 1 {
-                                    Divider().padding(.leading, 34)
+                Group {
+                    switch cliType {
+                    case .claudeCode:
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(Array(filteredSessions.enumerated()), id: \.element.id) { index, session in
+                                    sessionRow(session)
+                                    if index < filteredSessions.count - 1 {
+                                        Divider().padding(.leading, 34)
+                                    }
+                                }
+                            }
+                        }
+                    case .codex:
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(Array(filteredCodexSessions.enumerated()), id: \.element.id) { index, session in
+                                    codexSessionRow(session)
+                                    if index < filteredCodexSessions.count - 1 {
+                                        Divider().padding(.leading, 34)
+                                    }
+                                }
+                            }
+                        }
+                    case .cursorAgent:
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(Array(filteredCursorSessions.enumerated()), id: \.element.id) { index, session in
+                                    cursorSessionRow(session)
+                                    if index < filteredCursorSessions.count - 1 {
+                                        Divider().padding(.leading, 34)
+                                    }
                                 }
                             }
                         }
                     }
-                    .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(Array(filteredCodexSessions.enumerated()), id: \.element.id) { index, session in
-                                codexSessionRow(session)
-                                if index < filteredCodexSessions.count - 1 {
-                                    Divider().padding(.leading, 34)
-                                }
-                            }
-                        }
-                    }
-                    .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+                .frame(height: Self.rowHeight * CGFloat(Self.listRowCount))
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .frame(maxWidth: .infinity)
         }
@@ -598,6 +696,14 @@ struct LauncherView: View {
             title: session.title, projectName: session.projectName,
             timestamp: session.timestamp
         ) { launchCodexSession(session) }
+    }
+
+    private func cursorSessionRow(_ session: CursorSessionEntry) -> some View {
+        sessionRowContent(
+            id: session.id, icon: "cursorarrow.click",
+            title: session.title, projectName: session.projectName,
+            timestamp: session.timestamp
+        ) { launchCursorSession(session) }
     }
 
     private func sessionRowContent(
@@ -999,6 +1105,25 @@ struct LauncherView: View {
         onLaunch?(dir, .codex(opts))
     }
 
+    private func launchCursorSession(_ session: CursorSessionEntry) {
+        guard !isLaunching else { return }
+        let path: String
+        if session.projectPath.isEmpty {
+            guard let fallback = selectedDirectory ?? recentDirectories.first else { return }
+            path = fallback.path
+        } else {
+            path = session.projectPath
+        }
+        let dir = URL(fileURLWithPath: path)
+        selectedDirectory = dir
+        isLaunching = true
+        RecentDirectories.add(dir)
+        var opts = makeCursorAgentOptions()
+        opts.resumeSessionId = session.id
+        opts.continueSession = false
+        onLaunch?(dir, .cursorAgent(opts))
+    }
+
     private func makeClaudeCodeOptions(continueSession: Bool? = nil) -> ClaudeCodeOptions {
         var opts = ClaudeCodeOptions()
         opts.model = model.isEmpty ? nil : model
@@ -1016,7 +1141,19 @@ struct LauncherView: View {
             return .claudeCode(makeClaudeCodeOptions())
         case .codex:
             return .codex(makeCodexOptions())
+        case .cursorAgent:
+            return .cursorAgent(makeCursorAgentOptions())
         }
+    }
+
+    private func makeCursorAgentOptions() -> CursorAgentOptions {
+        var opts = CursorAgentOptions()
+        opts.model = cursorAgentModel.isEmpty ? nil : cursorAgentModel
+        opts.mode = cursorAgentMode.isEmpty ? nil : cursorAgentMode
+        opts.sandbox = cursorAgentSandbox.isEmpty ? nil : cursorAgentSandbox
+        opts.continueSession = cursorAgentContinueSession
+        opts.force = cursorAgentForce
+        return opts
     }
 
     private func makeCodexOptions() -> CodexOptions {

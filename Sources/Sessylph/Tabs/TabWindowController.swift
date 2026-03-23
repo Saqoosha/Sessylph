@@ -24,7 +24,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     private lazy var stateTracker: ClaudeStateTracker = ClaudeStateTracker(
         sessionName: session.tmuxSessionName,
         remoteHost: session.remoteHost,
-        isRunning: { [weak self] in self?.session.isRunning ?? false }
+        isRunning: { [weak self] in self?.session.isRunning ?? false },
+        cliType: session.cliType
     )
     private static let claudeOrange = NSColor(srgbRed: 0xD9/255.0, green: 0x78/255.0, blue: 0x58/255.0, alpha: 1.0)
     private static let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .bold)
@@ -172,6 +173,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             session = Session(directory: directory, options: options)
         case .codex(let options):
             session = Session(directory: directory, codexOptions: options)
+        case .cursorAgent(let options):
+            session = Session(directory: directory, cursorAgentOptions: options)
         case .remoteAttach(let remoteHost, let sessionName):
             session = Session(remoteHost: remoteHost, tmuxSession: sessionName, directory: directory)
         case .remoteNewSession(let remoteHost, let remoteDir, let options):
@@ -212,6 +215,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                     codexPath: codexPath,
                     notifierArgs: notifierArgs
                 )
+
+            case .cursorAgent(let options):
+                let cursorAgentPath = try CursorAgentCLI.cursorAgentPath()
+                command = options.buildCommand(cursorAgentPath: cursorAgentPath)
 
             case .remoteAttach(_, _):
                 // No session creation needed — just attach to existing
@@ -330,9 +337,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     }
 
     func stateTrackerDidCompleteTask(_ tracker: ClaudeStateTracker) {
-        // For remote sessions, hooks don't work — use title-based detection instead.
-        // Local sessions use hook-based notifications via sessylph-notifier.
-        guard session.isRemote else { return }
+        // Remote: no hooks. Local Cursor Agent: no Codex/Claude-style notify flag — use title-based detection.
+        // Other local sessions use hook-based notifications via sessylph-notifier.
+        guard session.isRemote || session.cliType == .cursorAgent else { return }
 
         let taskDescription = tracker.lastWorkingTaskDescription
         let sessionTitle = session.title

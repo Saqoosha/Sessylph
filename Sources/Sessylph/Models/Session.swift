@@ -6,6 +6,7 @@ struct Session: Identifiable, Codable, Sendable {
     var cliType: CLIType
     var options: ClaudeCodeOptions
     var codexOptions: CodexOptions?
+    var cursorAgentOptions: CursorAgentOptions?
     var remoteHost: RemoteHost?
     var tmuxSessionName: String
     var isRunning: Bool = false
@@ -26,6 +27,7 @@ struct Session: Identifiable, Codable, Sendable {
         case cliType
         case options
         case codexOptions
+        case cursorAgentOptions
         case remoteHost
         case tmuxSessionName
         case createdAt
@@ -37,6 +39,7 @@ struct Session: Identifiable, Codable, Sendable {
         self.cliType = .claudeCode
         self.options = options
         self.codexOptions = nil
+        self.cursorAgentOptions = nil
         self.remoteHost = nil
         self.tmuxSessionName = TmuxManager.sessionName(for: id, directory: directory)
         self.isRunning = false
@@ -49,6 +52,20 @@ struct Session: Identifiable, Codable, Sendable {
         self.cliType = .codex
         self.options = ClaudeCodeOptions()
         self.codexOptions = codexOptions
+        self.cursorAgentOptions = nil
+        self.remoteHost = nil
+        self.tmuxSessionName = TmuxManager.sessionName(for: id, directory: directory)
+        self.isRunning = false
+        self.createdAt = Date()
+    }
+
+    init(directory: URL, cursorAgentOptions: CursorAgentOptions) {
+        self.id = UUID()
+        self.directory = directory
+        self.cliType = .cursorAgent
+        self.options = ClaudeCodeOptions()
+        self.codexOptions = nil
+        self.cursorAgentOptions = cursorAgentOptions
         self.remoteHost = nil
         self.tmuxSessionName = TmuxManager.sessionName(for: id, directory: directory)
         self.isRunning = false
@@ -61,6 +78,7 @@ struct Session: Identifiable, Codable, Sendable {
         self.cliType = .claudeCode
         self.options = options
         self.codexOptions = nil
+        self.cursorAgentOptions = nil
         self.remoteHost = remoteHost
         self.tmuxSessionName = TmuxManager.sessionName(for: id, directory: directory)
         self.isRunning = false
@@ -73,6 +91,7 @@ struct Session: Identifiable, Codable, Sendable {
         self.cliType = .claudeCode
         self.options = ClaudeCodeOptions()
         self.codexOptions = nil
+        self.cursorAgentOptions = nil
         self.remoteHost = remoteHost
         self.tmuxSessionName = tmuxSession
         self.isRunning = true
@@ -86,6 +105,7 @@ struct Session: Identifiable, Codable, Sendable {
         cliType = try container.decodeIfPresent(CLIType.self, forKey: .cliType) ?? .claudeCode
         options = try container.decode(ClaudeCodeOptions.self, forKey: .options)
         codexOptions = try container.decodeIfPresent(CodexOptions.self, forKey: .codexOptions)
+        cursorAgentOptions = try container.decodeIfPresent(CursorAgentOptions.self, forKey: .cursorAgentOptions)
         remoteHost = try container.decodeIfPresent(RemoteHost.self, forKey: .remoteHost)
         tmuxSessionName = try container.decode(String.self, forKey: .tmuxSessionName)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
