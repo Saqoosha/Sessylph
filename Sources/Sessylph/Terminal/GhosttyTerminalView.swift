@@ -32,6 +32,9 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     private static let scrollbarInset: CGFloat = 2
     private static let scrollbarHideDelay: TimeInterval = 0.8
 
+    // Display change observation
+    nonisolated(unsafe) private var screenChangeObserver: NSObjectProtocol?
+
     override var acceptsFirstResponder: Bool { true }
 
     // MARK: - Init
@@ -41,6 +44,20 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         wantsLayer = true
         setupScrollbar()
         registerForDraggedTypes([.fileURL])
+
+        screenChangeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeScreenNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let notificationWindow = notification.object as? NSWindow
+            MainActor.assumeIsolated {
+                guard let self,
+                      let notificationWindow,
+                      notificationWindow === self.window else { return }
+                self.viewDidChangeBackingProperties()
+            }
+        }
     }
 
     @available(*, unavailable)
@@ -50,6 +67,15 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
 
     private var backingScaleFactor: CGFloat {
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+    }
+
+    /// CGDirectDisplayID for the screen the window is currently on, or nil if the window has no screen.
+    private var currentDisplayID: UInt32? {
+        guard let screen = window?.screen,
+              let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 else {
+            return nil
+        }
+        return screenNumber
     }
 
     @discardableResult
@@ -100,6 +126,11 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
             return false
         }
 
+        // Set display ID so ghostty targets the correct Metal display
+        if let displayID = currentDisplayID {
+            ghostty_surface_set_display_id(surface, displayID)
+        }
+
         // Set content scale explicitly (viewDidMoveToWindow fires before surface exists)
         ghostty_surface_set_content_scale(surface, Double(scale), Double(scale))
 
@@ -135,6 +166,9 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     }
 
     deinit {
+        if let screenChangeObserver {
+            NotificationCenter.default.removeObserver(screenChangeObserver)
+        }
         if let surface {
             ghostty_surface_free(surface)
         }
@@ -152,6 +186,9 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let surface else { return }
+        if let displayID = currentDisplayID {
+            ghostty_surface_set_display_id(surface, displayID)
+        }
         let scale = backingScaleFactor
         ghostty_surface_set_content_scale(surface, Double(scale), Double(scale))
         ghostty_surface_set_size(surface, UInt32(bounds.width * scale), UInt32(bounds.height * scale))
@@ -167,6 +204,9 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         guard let surface else { return }
+        if let displayID = currentDisplayID {
+            ghostty_surface_set_display_id(surface, displayID)
+        }
         let scale = backingScaleFactor
         ghostty_surface_set_content_scale(surface, Double(scale), Double(scale))
         ghostty_surface_set_size(surface, UInt32(bounds.width * scale), UInt32(bounds.height * scale))
