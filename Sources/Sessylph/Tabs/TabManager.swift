@@ -23,6 +23,18 @@ final class TabManager {
 
     // MARK: - Tab Lifecycle
 
+    /// Creates a new independent window with a launcher tab.
+    func newWindow() {
+        let controller = TabWindowController()
+        windowControllers.append(controller)
+        // Temporarily disallow tabbing so macOS doesn't auto-merge into existing window
+        controller.window?.tabbingMode = .disallowed
+        controller.showWindow(nil)
+        controller.window?.tabbingMode = .preferred
+
+        logger.info("New window opened")
+    }
+
     /// Creates a new empty launcher tab.
     func newTab(in existingWindow: NSWindow? = nil) {
         let controller = TabWindowController()
