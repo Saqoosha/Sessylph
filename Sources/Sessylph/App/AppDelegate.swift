@@ -143,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // File menu
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(withTitle: "New Tab", action: #selector(newTab(_:)), keyEquivalent: "t")
+        fileMenu.addItem(withTitle: "New Window", action: #selector(newWindow(_:)), keyEquivalent: "n")
         fileMenu.addItem(withTitle: "Open Folder...", action: #selector(openFolder(_:)), keyEquivalent: "o")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close Tab", action: #selector(closeTab(_:)), keyEquivalent: "w")
@@ -165,6 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "Merge All Windows", action: #selector(NSWindow.mergeAllWindows(_:)), keyEquivalent: "")
         let windowMenuItem = NSMenuItem()
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
@@ -181,6 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             TabManager.shared.windowControllers.contains(where: { $0.window === window }) ? window : nil
         }
         TabManager.shared.newTab(in: targetWindow)
+    }
+
+    @objc private func newWindow(_ sender: Any?) {
+        TabManager.shared.newWindow()
     }
 
     @objc private func openFolder(_ sender: Any?) {
