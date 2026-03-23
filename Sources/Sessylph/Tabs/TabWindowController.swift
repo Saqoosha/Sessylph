@@ -21,12 +21,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     /// The last task description observed while Claude was actively working.
     /// Retained across idle transitions so notifications can reference the completed task.
     var lastWorkingTaskDescription: String { stateTracker.lastWorkingTaskDescription }
-    private lazy var stateTracker: ClaudeStateTracker = ClaudeStateTracker(
-        sessionName: session.tmuxSessionName,
-        remoteHost: session.remoteHost,
-        isRunning: { [weak self] in self?.session.isRunning ?? false },
-        cliType: session.cliType
-    )
+    private var stateTracker: ClaudeStateTracker!
     private static let claudeOrange = NSColor(srgbRed: 0xD9/255.0, green: 0x78/255.0, blue: 0x58/255.0, alpha: 1.0)
     private static let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .bold)
 
@@ -35,11 +30,19 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     // MARK: - Initialization (empty launcher tab)
 
     init() {
-        self.session = Session(directory: URL(fileURLWithPath: NSHomeDirectory()))
+        let initialSession = Session(directory: URL(fileURLWithPath: NSHomeDirectory()))
+        self.session = initialSession
 
         let window = Self.makeWindow(title: "New Tab")
 
         super.init(window: window)
+        stateTracker = ClaudeStateTracker(
+            sessionName: initialSession.tmuxSessionName,
+            remoteHost: initialSession.remoteHost,
+            isRunning: { [weak self] in self?.session.isRunning ?? false },
+            cliType: initialSession.cliType
+        )
+        stateTracker.delegate = self
         window.delegate = self
         restoreWindowFrame()
 
@@ -58,6 +61,12 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         let window = Self.makeWindow(title: session.title)
 
         super.init(window: window)
+        stateTracker = ClaudeStateTracker(
+            sessionName: session.tmuxSessionName,
+            remoteHost: session.remoteHost,
+            isRunning: { [weak self] in self?.session.isRunning ?? false },
+            cliType: session.cliType
+        )
         window.delegate = self
         restoreWindowFrame()
 
@@ -165,6 +174,21 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.setFrame(savedFrame, display: false)
     }
 
+    // MARK: - State tracker
+
+    /// Recreate after `session` changes so title parsing matches the active CLI (controller is reused after launcher → terminal).
+    private func replaceStateTrackerForCurrentSession() {
+        stateTracker.stopTitlePolling()
+        stateTracker.stopSpinner()
+        stateTracker = ClaudeStateTracker(
+            sessionName: session.tmuxSessionName,
+            remoteHost: session.remoteHost,
+            isRunning: { [weak self] in self?.session.isRunning ?? false },
+            cliType: session.cliType
+        )
+        stateTracker.delegate = self
+    }
+
     // MARK: - Launch Session
 
     func launchSession(directory: URL, config: LaunchConfig) async {
@@ -180,6 +204,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         case .remoteNewSession(let remoteHost, let remoteDir, let options):
             session = Session(remoteHost: remoteHost, directory: URL(fileURLWithPath: remoteDir), options: options)
         }
+
+        replaceStateTrackerForCurrentSession()
 
         applyTitles(icon: "⏳")
 
@@ -237,7 +263,6 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 // Configure the remote session for title passthrough
                 await TmuxManager.shared.configureSession(name: session.tmuxSessionName, remoteHost: session.remoteHost)
 
-                stateTracker.delegate = self
                 stateTracker.updateSessionName(session.tmuxSessionName)
                 stateTracker.updateRemoteHost(session.remoteHost)
                 applyTitles(icon: ClaudeState.idle.icon)
@@ -288,7 +313,6 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             return
         }
 
-        stateTracker.delegate = self
         stateTracker.updateSessionName(session.tmuxSessionName)
         stateTracker.updateRemoteHost(session.remoteHost)
         applyTitles(icon: ClaudeState.idle.icon)

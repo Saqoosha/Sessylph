@@ -18,6 +18,13 @@ enum EnvironmentBuilder {
 
     private static let cache = OSAllocatedUnfairLock(initialState: Cache())
 
+    /// Fallback when the login shell cannot be run: same keys as `loginEnvironment()` but without `filteredKeys`.
+    private static func environmentStringsFromProcessInfo() -> [String] {
+        ProcessInfo.processInfo.environment
+            .filter { !filteredKeys.contains($0.key) }
+            .map { "\($0.key)=\($0.value)" }
+    }
+
     /// Captures the user's full login shell environment.
     /// GUI apps don't inherit shell config (PATH, API keys, etc.),
     /// so we run the login shell to collect it. Result is cached.
@@ -39,7 +46,7 @@ enum EnvironmentBuilder {
                 try process.run()
             } catch {
                 logger.warning("Failed to capture login shell environment: \(error.localizedDescription). Using process environment as fallback.")
-                let fallback = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
+                let fallback = environmentStringsFromProcessInfo()
                 cache.environment = fallback
                 return fallback
             }
@@ -50,7 +57,7 @@ enum EnvironmentBuilder {
 
             guard let output = String(data: data, encoding: .utf8) else {
                 logger.warning("Failed to decode login shell output. Using process environment as fallback.")
-                let fallback = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
+                let fallback = environmentStringsFromProcessInfo()
                 cache.environment = fallback
                 return fallback
             }
@@ -93,7 +100,7 @@ enum EnvironmentBuilder {
                     try process.run()
                 } catch {
                     logger.warning("Failed to capture login shell environment: \(error.localizedDescription). Using process environment as fallback.")
-                    computed = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
+                    computed = environmentStringsFromProcessInfo()
                     cache.environment = computed
                     let dict = Self.buildDict(from: computed)
                     cache.dict = dict
@@ -113,7 +120,7 @@ enum EnvironmentBuilder {
                         }
                 } else {
                     logger.warning("Failed to decode login shell output. Using process environment as fallback.")
-                    computed = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
+                    computed = environmentStringsFromProcessInfo()
                 }
                 cache.environment = computed
                 envArray = computed

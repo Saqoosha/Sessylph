@@ -66,15 +66,14 @@ enum CursorAgentCLI {
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["--list-models"]
         process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
-        var env = ProcessInfo.processInfo.environment
+        var env = EnvironmentBuilder.loginEnvironmentDict()
         env["NO_COLOR"] = "1"
         env["TERM"] = "dumb"
         process.environment = env
 
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
 
         do {
             try process.run()
@@ -82,13 +81,11 @@ enum CursorAgentCLI {
             return nil
         }
 
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
 
-        let out = String(data: outData, encoding: .utf8) ?? ""
-        let err = String(data: errData, encoding: .utf8) ?? ""
-        let combined = stripANSIEscapeCodes(out + "\n" + err)
+        let combined = stripANSIEscapeCodes(String(data: data, encoding: .utf8) ?? "")
         return combined.isEmpty ? nil : combined
     }
 
@@ -129,6 +126,7 @@ enum CursorAgentCLI {
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["--help"]
         process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
+        process.environment = EnvironmentBuilder.loginEnvironmentDict()
 
         let pipe = Pipe()
         process.standardOutput = pipe

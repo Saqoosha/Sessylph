@@ -1149,8 +1149,14 @@ struct LauncherView: View {
     private func makeCursorAgentOptions() -> CursorAgentOptions {
         var opts = CursorAgentOptions()
         opts.model = cursorAgentModel.isEmpty ? nil : cursorAgentModel
-        opts.mode = cursorAgentMode.isEmpty ? nil : cursorAgentMode
-        opts.sandbox = cursorAgentSandbox.isEmpty ? nil : cursorAgentSandbox
+        let validModes = Set(cursorAgentCLIOptions.modes)
+        opts.mode = cursorAgentMode.isEmpty
+            ? nil
+            : (validModes.contains(cursorAgentMode) ? cursorAgentMode : nil)
+        let validSandbox = Set(cursorAgentCLIOptions.sandboxModes)
+        opts.sandbox = cursorAgentSandbox.isEmpty
+            ? nil
+            : (validSandbox.contains(cursorAgentSandbox) ? cursorAgentSandbox : nil)
         opts.continueSession = cursorAgentContinueSession
         opts.force = cursorAgentForce
         return opts

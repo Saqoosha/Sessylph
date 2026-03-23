@@ -110,14 +110,18 @@ final class ClaudeStateTracker {
             return claude
         }
         if rawTitle.unicodeScalars.contains(where: { $0.value >= 0x2800 && $0.value <= 0x28FF }) {
-            let rest = rawTitle.trimmingCharacters(in: .whitespaces)
+            let rest = stripBrailleScalars(rawTitle).trimmingCharacters(in: .whitespaces)
             return (.working, rest)
         }
         let lower = rawTitle.lowercased()
         if lower.contains("thinking") || lower.contains("generating") {
-            return (.working, rawTitle.trimmingCharacters(in: .whitespaces))
+            return (.working, stripBrailleScalars(rawTitle).trimmingCharacters(in: .whitespaces))
         }
         return (.idle, "")
+    }
+
+    private static func stripBrailleScalars(_ s: String) -> String {
+        String(s.unicodeScalars.filter { $0.value < 0x2800 || $0.value > 0x28FF })
     }
 
     static func parseTitle(_ rawTitle: String, cliType: CLIType) -> (state: ClaudeState, taskDescription: String) {
