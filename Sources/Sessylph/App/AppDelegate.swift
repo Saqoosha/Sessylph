@@ -296,7 +296,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationManager.shared.postIdleReminder(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
         case "user_prompt":
             // Record slash commands from UserPromptSubmit hook
-            if let prompt = message, prompt.hasPrefix("/"), prompt.count > 1 {
+            if let prompt = message, prompt.hasPrefix("/"), prompt.count > 1,
+               !prompt.dropFirst().contains("/") {
                 if let directory = controller?.session.directory {
                     let commandName = SlashCommandStore.extractCommandName(prompt)
                     logger.info("[CmdStrip] Hook recording command=\(commandName, privacy: .public) dir=\(directory.lastPathComponent, privacy: .public)")
