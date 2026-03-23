@@ -72,7 +72,7 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     /// CGDirectDisplayID for the screen the window is currently on, or nil if the window has no screen.
     private var currentDisplayID: UInt32? {
         guard let screen = window?.screen,
-              let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 else {
+              let screenNumber = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value else {
             return nil
         }
         return screenNumber
