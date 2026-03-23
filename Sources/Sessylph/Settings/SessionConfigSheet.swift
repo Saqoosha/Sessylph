@@ -38,6 +38,7 @@ struct SessionConfigSheet: View {
                 Section("Session") {
                     Toggle("Continue Last Session", isOn: $options.continueSession)
                     Toggle("Verbose Output", isOn: $options.verbose)
+                    Toggle("Bare Mode (scripted use)", isOn: $options.bare)
 
                     if let budget = options.maxBudgetUSD {
                         HStack {
@@ -46,6 +47,11 @@ struct SessionConfigSheet: View {
                             Text("$\(budget, specifier: "%.2f")")
                         }
                     }
+                }
+
+                Section("Channels") {
+                    TextField("Channel server URLs (comma-separated)", text: channelsBinding)
+                        .font(.system(.body, design: .monospaced))
                 }
             }
             .formStyle(.grouped)
@@ -62,7 +68,7 @@ struct SessionConfigSheet: View {
             }
             .padding()
         }
-        .frame(width: 400, height: 350)
+        .frame(width: 420, height: 420)
         .onAppear {
             cliOptions = ClaudeCLI.discoverCLIOptions()
         }
@@ -72,6 +78,20 @@ struct SessionConfigSheet: View {
         Binding(
             get: { options[keyPath: keyPath] ?? "" },
             set: { options[keyPath: keyPath] = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private var channelsBinding: Binding<String> {
+        Binding(
+            get: {
+                options.channels?.joined(separator: ", ") ?? ""
+            },
+            set: { newValue in
+                let urls = newValue.components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                options.channels = urls.isEmpty ? nil : urls
+            }
         )
     }
 }
