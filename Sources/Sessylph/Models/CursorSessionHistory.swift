@@ -21,6 +21,9 @@ actor CursorSessionHistory {
     private var lastLoadTime: Date = .distantPast
     private static let cacheInterval: TimeInterval = 30
     private static let maxSessionsToParse = 50
+    /// Cursor encodes `/` as `-` in `~/.cursor/projects` folder names. Naive reverse breaks when a path segment contains `-`.
+    /// We enumerate contiguous token groupings (2^(n-1) variants for n tokens); cap avoids pathological cost.
+    private static let maxHyphenTokensForPartition = 22
 
     func loadSessions(forceRefresh: Bool = false) async -> [CursorSessionEntry] {
         if !forceRefresh, Date().timeIntervalSince(lastLoadTime) < Self.cacheInterval {
@@ -109,8 +112,9 @@ actor CursorSessionHistory {
     }
 
     private static func readMetaZero(from dbURL: URL) -> Data? {
+        guard let sqlite3 = sqlite3ExecutableURL() else { return nil }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.executableURL = sqlite3
         process.arguments = [dbURL.path, "SELECT value FROM meta WHERE key='0';"]
         process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
 
@@ -128,11 +132,17 @@ actor CursorSessionHistory {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
 
-        let hex = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .filter { !$0.isWhitespace } ?? ""
-        guard !hex.isEmpty else { return nil }
-        return dataFromHex(hex)
+        let raw = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !raw.isEmpty else { return nil }
+        let hex = raw.filter { !$0.isWhitespace }
+        if let decoded = dataFromHex(hex), parseMetaJSON(decoded) != nil {
+            return decoded
+        }
+        if let utf8 = raw.data(using: .utf8), parseMetaJSON(utf8) != nil {
+            return utf8
+        }
+        return nil
     }
 
     private static func dataFromHex(_ hex: String) -> Data? {
@@ -148,6 +158,15 @@ actor CursorSessionHistory {
         return data
     }
 
+    private static func sqlite3ExecutableURL() -> URL? {
+        let candidates = ["/usr/bin/sqlite3", "/bin/sqlite3"]
+        for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
+            return URL(fileURLWithPath: path)
+        }
+        return nil
+    }
+
+    /// Maps `md5(absoluteWorkspacePath)` → path. Cursor stores project dirs as path segments joined with `-` (each `/` → `-`).
     private static func workspaceHashToProjectPath() -> [String: String] {
         let projectsRoot = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cursor/projects")
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: projectsRoot.path) else {
@@ -155,11 +174,44 @@ actor CursorSessionHistory {
         }
 
         var map: [String: String] = [:]
+        map.reserveCapacity(names.count * 2)
         for name in names {
-            let path = "/" + name.replacingOccurrences(of: "-", with: "/")
-            map[md5Hex(path)] = path
+            let tokens = name.split(separator: "-").map(String.init)
+            guard !tokens.isEmpty else { continue }
+
+            let paths: [String]
+            if tokens.count <= maxHyphenTokensForPartition {
+                paths = allPathSegmentations(from: tokens).map { "/" + $0.joined(separator: "/") }
+            } else {
+                paths = ["/" + name.replacingOccurrences(of: "-", with: "/")]
+            }
+
+            for path in paths {
+                map[md5Hex(path)] = path
+            }
         }
         return map
+    }
+
+    /// All ways to merge consecutive hyphen-split tokens into path segments (each segment may contain `-` again).
+    private static func allPathSegmentations(from tokens: [String]) -> [[String]] {
+        guard !tokens.isEmpty else { return [] }
+        if tokens.count == 1 {
+            return [[tokens[0]]]
+        }
+        var results: [[String]] = []
+        for k in 1...tokens.count {
+            let firstSegment = tokens[0..<k].joined(separator: "-")
+            let rest = Array(tokens[k...])
+            if rest.isEmpty {
+                results.append([firstSegment])
+            } else {
+                for tail in allPathSegmentations(from: rest) {
+                    results.append([firstSegment] + tail)
+                }
+            }
+        }
+        return results
     }
 
     private static func md5Hex(_ string: String) -> String {

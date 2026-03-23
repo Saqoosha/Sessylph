@@ -1107,7 +1107,13 @@ struct LauncherView: View {
 
     private func launchCursorSession(_ session: CursorSessionEntry) {
         guard !isLaunching else { return }
-        let path = session.projectPath.isEmpty ? NSHomeDirectory() : session.projectPath
+        let path: String
+        if session.projectPath.isEmpty {
+            guard let fallback = selectedDirectory ?? recentDirectories.first else { return }
+            path = fallback.path
+        } else {
+            path = session.projectPath
+        }
         let dir = URL(fileURLWithPath: path)
         selectedDirectory = dir
         isLaunching = true
