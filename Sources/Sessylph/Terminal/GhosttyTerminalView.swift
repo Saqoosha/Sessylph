@@ -374,6 +374,16 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         keyEvent.text = nil
 
         ghostty_surface_key(surface, keyEvent)
+
+        // Re-evaluate link detection at current mouse position with updated modifiers.
+        // Without this, pressing Cmd alone won't highlight hoverable links until mouse moves.
+        if let window = self.window {
+            let windowPoint = window.mouseLocationOutsideOfEventStream
+            let pos = convert(windowPoint, from: nil)
+            if bounds.contains(pos) {
+                ghostty_surface_mouse_pos(surface, pos.x, frame.height - pos.y, mods)
+            }
+        }
     }
 
     // MARK: - Mouse Input
