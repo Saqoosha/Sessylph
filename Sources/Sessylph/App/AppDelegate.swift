@@ -86,6 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             tabSwitchMonitor = nil
         }
+        // Tear down all ghostty surfaces before freeing the app to prevent
+        // use-after-free in GhosttyTerminalView.deinit (surfaces reference the app).
+        for controller in TabManager.shared.windowControllers {
+            controller.teardownTerminal()
+        }
         GhosttyApp.shared.shutdown()
         logger.info("Sessylph terminating")
     }
