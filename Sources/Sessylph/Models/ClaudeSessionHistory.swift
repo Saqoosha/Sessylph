@@ -4,10 +4,10 @@ import Foundation
 
 struct ClaudeSessionEntry: Identifiable, Sendable {
     let id: String // sessionId (UUID string from filename)
-    let title: String // first user message, truncated
+    let title: String // first user message or saved task title
     let timestamp: Date
     let projectPath: String // decoded project directory path
-    let projectName: String // last path component
+    var projectName: String { (projectPath as NSString).lastPathComponent }
 }
 
 // MARK: - Claude Session History
@@ -45,6 +45,9 @@ actor ClaudeSessionHistory {
         var candidates: [(path: String, modDate: Date, sessionId: String, projectEncoded: String)] = []
 
         for projectEncoded in projectDirs {
+            // Skip sessions with CWD "/" (typically automated/scripted runs)
+            guard projectEncoded != "-" else { continue }
+
             let projectPath = projectsDir + "/" + projectEncoded
             guard let files = try? fm.contentsOfDirectory(atPath: projectPath) else { continue }
 
@@ -135,11 +138,20 @@ actor ClaudeSessionHistory {
 
             // Truncate and clean up title
             let cleanTitle = title
+                .replacingOccurrences(
+                    of: "</?command-(?:name|message|args)>",
+                    with: "",
+                    options: .regularExpression
+                )
+                .trimmingCharacters(in: .whitespacesAndNewlines)
                 .components(separatedBy: .newlines)
                 .first ?? title
             let truncated = cleanTitle.count > 100
                 ? String(cleanTitle.prefix(100)) + "..."
                 : cleanTitle
+
+            // Use saved task title if available, otherwise use first user message
+            let displayTitle = SessionTitleStore.title(forSessionId: sessionId) ?? truncated
 
             // Parse timestamp
             let timestamp: Date
@@ -153,10 +165,9 @@ actor ClaudeSessionHistory {
 
             return ClaudeSessionEntry(
                 id: sessionId,
-                title: truncated,
+                title: displayTitle,
                 timestamp: timestamp,
-                projectPath: projectPath,
-                projectName: (projectPath as NSString).lastPathComponent
+                projectPath: projectPath
             )
         }
 
@@ -216,8 +227,7 @@ actor ClaudeSessionHistory {
 
             // When single-segment fallback doesn't exist either, the remaining
             // segments likely form one hyphenated directory name whose encoding
-            // lost information (e.g. dots). Join them all as one component,
-            // then try to find the actual directory by fuzzy-matching in the parent.
+            // lost information (e.g. dots). Try fuzzy-matching in the parent.
             if bestLen == 1, !fm.fileExists(atPath: resolved + "/" + segments[i]) {
                 let remaining = segments[i...].joined(separator: "-")
                 // Check parent dir for an entry that matches with dots restored
@@ -230,7 +240,14 @@ actor ClaudeSessionHistory {
                         resolved += "/" + match
                         break
                     }
+                    // Parent is a valid directory but this segment doesn't exist
+                    // (e.g. deleted dir). Add single segment and keep resolving
+                    // so deeper components remain separate path parts.
+                    resolved += "/" + segments[i]
+                    i += 1
+                    continue
                 }
+                // Parent doesn't exist — join all remaining as one component
                 resolved += "/" + remaining
                 break
             }
@@ -241,5 +258,51 @@ actor ClaudeSessionHistory {
         }
 
         return resolved.isEmpty ? "/" : resolved
+    }
+
+    /// Find the most recent Claude Code session ID for a project directory.
+    /// - Parameter earliestDate: Only consider files modified at or after this date.
+    static func findSessionId(forDirectory directory: URL, after earliestDate: Date? = nil) -> String? {
+        let fm = FileManager.default
+        let projectsDir = NSHomeDirectory() + "/.claude/projects"
+
+        let encoded = encodeProjectPath(directory.path)
+        let projectPath = projectsDir + "/" + encoded
+        guard let files = try? fm.contentsOfDirectory(atPath: projectPath) else { return nil }
+
+        var newest: (id: String, date: Date)?
+        for file in files where file.hasSuffix(".jsonl") {
+            let sessionId = String(file.dropLast(6))
+            guard UUID(uuidString: sessionId) != nil else { continue }
+            let filePath = projectPath + "/" + file
+            guard let attrs = try? fm.attributesOfItem(atPath: filePath),
+                  let modDate = attrs[.modificationDate] as? Date
+            else { continue }
+            if let earliest = earliestDate, modDate < earliest { continue }
+            if newest == nil || modDate > newest!.date {
+                newest = (sessionId, modDate)
+            }
+        }
+        return newest?.id
+    }
+
+    /// Encode a filesystem path to Claude Code's project directory name.
+    ///
+    /// Inverse of `decodeProjectPath`: `/Users/hiko/.config/claude` →
+    /// `-Users-hiko--config-claude` (leading dots get an extra `-`).
+    private static func encodeProjectPath(_ path: String) -> String {
+        let components = path.split(separator: "/", omittingEmptySubsequences: true)
+        var parts = ["-"] // leading "-" prefix
+        for component in components {
+            let s = String(component)
+            if s.hasPrefix(".") {
+                // Leading dot → extra "-" (empty segment before the dot-stripped name)
+                parts.append("")
+                parts.append(String(s.dropFirst()))
+            } else {
+                parts.append(s)
+            }
+        }
+        return parts.joined(separator: "-")
     }
 }

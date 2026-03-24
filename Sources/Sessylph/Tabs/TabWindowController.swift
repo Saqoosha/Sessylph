@@ -358,6 +358,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
     func stateTracker(_ tracker: ClaudeStateTracker, wantsRename newName: String) {
         renameTmuxSession(task: newName)
+        saveSessionTitle(newName)
     }
 
     func stateTrackerDidCompleteTask(_ tracker: ClaudeStateTracker) {
@@ -398,6 +399,27 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 self?.session.tmuxSessionName = oldName
                 self?.stateTracker.updateSessionName(oldName)
                 if let session = self?.session { SessionStore.shared.update(session) }
+            }
+        }
+    }
+
+    private func saveSessionTitle(_ title: String) {
+        // Use resumeSessionId if available (resumed session)
+        let sessionId: String? = switch session.cliType {
+        case .claudeCode: session.options.resumeSessionId
+        case .codex: session.codexOptions?.resumeSessionId
+        case .cursorAgent: session.cursorAgentOptions?.resumeSessionId
+        }
+        if let sessionId {
+            SessionTitleStore.save(title: title, forSessionId: sessionId)
+        } else if session.cliType == .claudeCode {
+            // Fallback: find session ID from filesystem (off main thread)
+            let directory = session.directory
+            let createdAt = session.createdAt
+            Task.detached {
+                if let id = ClaudeSessionHistory.findSessionId(forDirectory: directory, after: createdAt) {
+                    SessionTitleStore.save(title: title, forSessionId: id)
+                }
             }
         }
     }
