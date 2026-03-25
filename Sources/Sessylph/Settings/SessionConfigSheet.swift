@@ -39,6 +39,7 @@ struct SessionConfigSheet: View {
                     Toggle("Continue Last Session", isOn: $options.continueSession)
                     Toggle("Verbose Output", isOn: $options.verbose)
                     Toggle("Bare Mode (scripted use)", isOn: $options.bare)
+                    Toggle("Scrub Credentials from Subprocesses", isOn: $options.scrubSubprocessEnv)
 
                     if let budget = options.maxBudgetUSD {
                         HStack {

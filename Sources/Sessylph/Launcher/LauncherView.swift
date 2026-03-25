@@ -49,6 +49,7 @@ struct LauncherView: View {
     @AppStorage(Defaults.launcherSkipPermissions) private var skipPermissions = false
     @AppStorage(Defaults.launcherContinueSession) private var continueSession = false
     @AppStorage(Defaults.launcherVerbose) private var verbose = false
+    @AppStorage(Defaults.launcherScrubSubprocessEnv) private var scrubSubprocessEnv = false
     // Codex options
     @AppStorage(Defaults.codexModel) private var codexModel = ""
     @AppStorage(Defaults.codexApprovalMode) private var codexApprovalMode = "on-request"
@@ -285,6 +286,7 @@ struct LauncherView: View {
                 Toggle("Skip permissions", isOn: $skipPermissions)
                 Toggle("Continue session", isOn: $continueSession)
                 Toggle("Verbose", isOn: $verbose)
+                Toggle("Scrub subprocess credentials", isOn: $scrubSubprocessEnv)
             }
             .toggleStyle(.checkbox)
             .frame(maxWidth: .infinity)
@@ -1132,6 +1134,7 @@ struct LauncherView: View {
         opts.dangerouslySkipPermissions = skipPermissions
         opts.continueSession = continueSession ?? self.continueSession
         opts.verbose = verbose
+        opts.scrubSubprocessEnv = scrubSubprocessEnv
         return opts
     }
 

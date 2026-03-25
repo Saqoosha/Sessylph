@@ -23,6 +23,7 @@ enum LaunchConfig {
             options.dangerouslySkipPermissions = defaults.bool(forKey: Defaults.launcherSkipPermissions)
             options.continueSession = defaults.bool(forKey: Defaults.launcherContinueSession)
             options.verbose = defaults.bool(forKey: Defaults.launcherVerbose)
+            options.scrubSubprocessEnv = defaults.bool(forKey: Defaults.launcherScrubSubprocessEnv)
             return .claudeCode(options)
 
         case .codex:
