@@ -103,11 +103,13 @@ final class TabManager {
         }
 
         for name in existingNames where !trackedNames.contains(name) && !reattachedNames.contains(name) {
-            // Resolve actual working directory from tmux pane
+            // Resolve project directory from tmux session env (SESSYLPH_DIR),
+            // falling back to pane CWD, then home directory.
             let dir: URL
-            if let path = await TmuxManager.shared.getPaneCurrentPath(sessionName: name) {
+            if let path = await TmuxManager.shared.getSessionDirectory(sessionName: name) {
                 dir = URL(fileURLWithPath: path)
             } else {
+                logger.info("Could not resolve directory for orphan session \(name), using home directory")
                 dir = URL(fileURLWithPath: NSHomeDirectory())
             }
             var session = Session(directory: dir)

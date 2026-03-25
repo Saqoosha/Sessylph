@@ -176,6 +176,7 @@ final class TmuxManager: Sendable {
                 ";", "set-option", "-g", "mouse", "off",
                 ";", "set-option", "-g", "history-limit", "100000",
                 ";", "set-environment", "-gu", "CLAUDECODE",
+                ";", "set-environment", "-t", name, "SESSYLPH_DIR", directory.path,
                 ";", "send-keys", "-t", name, wrappedCommand, "Enter",
             ], remoteHost: remoteHost)
             // Best-effort: extended-keys-format csi-u requires tmux 3.4+.
@@ -197,6 +198,7 @@ final class TmuxManager: Sendable {
                     ";", "set-option", "-t", name, "allow-passthrough", "on",
                     ";", "set-window-option", "-t", name, "allow-rename", "on",
                     ";", "set-option", "-t", name, "mouse", "off",
+                    ";", "set-environment", "-t", name, "SESSYLPH_DIR", directory.path,
                 ] + Self.serverOptions + [
                     ";", "send-keys", "-t", name, wrappedCommand, "Enter",
                 ])
@@ -330,6 +332,26 @@ final class TmuxManager: Sendable {
             logger.debug("Failed to get pane path for \(sessionName): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Returns the project directory stored in the tmux session environment
+    /// (set at session creation via `SESSYLPH_DIR`). Falls back to `getPaneCurrentPath`.
+    func getSessionDirectory(sessionName: String, remoteHost: RemoteHost? = nil) async -> String? {
+        let target = remoteHost != nil ? sessionName : "=\(sessionName)"
+        do {
+            let output = try await runTmux(args: [
+                "show-environment", "-t", target, "SESSYLPH_DIR",
+            ], remoteHost: remoteHost)
+            // Output format: "SESSYLPH_DIR=/path/to/dir"
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let eqIdx = trimmed.firstIndex(of: "=") {
+                let path = String(trimmed[trimmed.index(after: eqIdx)...])
+                if !path.isEmpty { return path }
+            }
+        } catch {
+            logger.debug("SESSYLPH_DIR not available for \(sessionName): \(error.localizedDescription)")
+        }
+        return await getPaneCurrentPath(sessionName: sessionName, remoteHost: remoteHost)
     }
 
     // MARK: - Pane Mouse Mode
