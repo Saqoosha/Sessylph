@@ -221,7 +221,7 @@ All tmux operations. Runs on `DispatchQueue.global()`, exposes async/await API. 
 - **Remote SSH:** `executeRemoteCommand()` runs tmux commands on remote hosts via SSH, `shellEscape()` for safe argument passing
 - **Queries:** list sessions, get pane title, get current path, get window size, get pane count, capture pane history
 - **Mouse mode:** `getPaneCount()` / `setMouse(on:)` — dynamic mouse toggle based on pane count
-- **Server config:** Extended keys, CSI u, mouse off, window size "latest", history-limit 100K, allow-rename on (all batched into session creation)
+- **Server config:** Extended keys, CSI u, alternate screen disabled (smcup@:rmcup@), mouse off, window size "latest", history-limit 100K, allow-rename on (all batched into session creation)
 - **Session naming:** `sessylph-{first 8 chars of UUID}`
 - **Remote target safety:** Uses plain session names (no `=` prefix) for remote `-t` targets since `=` prefix is not supported over SSH
 
