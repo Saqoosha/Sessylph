@@ -15,10 +15,11 @@ struct Session: Identifiable, Codable, Sendable {
     var isRemote: Bool { remoteHost != nil }
 
     var title: String {
+        let name = directory.path == NSHomeDirectory() ? "~" : directory.lastPathComponent
         if let remoteHost {
-            return "\(directory.lastPathComponent)@\(remoteHost.host)"
+            return "\(name)@\(remoteHost.host)"
         }
-        return directory.lastPathComponent
+        return name
     }
 
     enum CodingKeys: String, CodingKey {
