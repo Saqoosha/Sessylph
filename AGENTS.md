@@ -71,6 +71,52 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - `sh.saqoo.sessylph.auto-adopt.plist` — launchd config for daily execution (9:00 JST)
 - See [docs/auto-adopt.md](docs/auto-adopt.md) for setup instructions
 
+## Rendering Modes
+Sessylph supports two rendering modes per session:
+
+### Terminal Mode (v1, default)
+- GhosttyKit (libghostty Metal) + tmux
+- Used for: all CLI types (Claude Code, Codex, Cursor Agent)
+- State detection: terminal title polling via ClaudeStateTracker
+- Files: `Terminal/Ghostty*.swift`, `Terminal/TerminalViewController.swift`
+
+### Native UI Mode (v2, Claude Code only)
+- SwiftUI chat interface via `--sdk-url` WebSocket protocol
+- Claude Code CLI spawned with `--sdk-url ws://localhost:PORT/ws/cli/SESSION_ID --print --output-format stream-json --input-format stream-json --include-partial-messages`
+- `--sdk-url` is a hidden flag in Claude Code CLI v2.1.83+ (NOT in `--help`)
+- NDJSON messages over WebSocket: system/init, assistant, stream_event, control_request, result, etc.
+- Permission handling via native dialogs (control_request/control_response)
+- Remote SSH via reverse tunnel (`ssh -R remotePort:localhost:localWSPort`)
+- Session persistence via `--resume` (no tmux needed)
+- NOT available for Codex or Cursor Agent (they lack `--sdk-url`)
+- Files: `Protocol/`, `ChatUI/`, `Session/`
+- Reference: [The Companion](https://github.com/The-Vibe-Company/companion) for protocol, [ClaudeCodeSDK](https://github.com/jamesrochabrun/ClaudeCodeSDK) for Swift patterns
+- Plan: `docs/superpowers/plans/2026-03-26-sessylph-v2-native-ui.md`
+- Analysis: `docs/vscode-extension-rendering-analysis.md`
+
+### Key Native UI Source Files (v2)
+- `Protocol/WebSocketServer.swift` — NWListener-based local WebSocket server
+- `Protocol/NDJSONParser.swift` — NDJSON stream parser (actor, buffer-based)
+- `Protocol/StreamMessage.swift` — All message type models (system, assistant, stream_event, control_request, result, etc.)
+- `ChatUI/ChatViewController.swift` — Integration controller (wires ChatView ↔ CLIProcessManager ↔ WebSocket)
+- `ChatUI/ChatView.swift` — Main chat layout + ChatViewModel (@Observable)
+- `ChatUI/MessageBubble.swift` — Message rendering (text, thinking, tool_use, tool_result)
+- `ChatUI/ToolCallCard.swift` — Collapsible tool card with IN/OUT grid (Bash, Edit, Read, Write, etc.)
+- `ChatUI/PermissionBanner.swift` — Inline allow/deny banner for tool permissions
+- `ChatUI/ChatInputView.swift` — User prompt input with slash command autocomplete
+- `Session/CLIProcessManager.swift` — Claude CLI process lifecycle (spawn, monitor, restart)
+- `Session/SessionStateMachine.swift` — State transitions (idle → starting → ready → streaming → ...)
+- `Session/RemoteCLIManager.swift` — SSH reverse tunnel + remote claude --sdk-url
+
+### WebSocket Protocol Quick Reference
+```
+App → CLI (outbound):
+  user message, control_response (allow/deny), interrupt, set_model, set_permission_mode, rewind_files, mcp_*
+
+CLI → App (inbound):
+  system/init, assistant, stream_event, control_request (can_use_tool), result, tool_progress, keep_alive
+```
+
 ## Key Patterns
 - Bundle ID: sh.saqoo.Sessylph
 - Development Team: G5G54TCH8W

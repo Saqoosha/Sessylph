@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "TabWindow
 
 @MainActor
 final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalViewControllerDelegate,
-    ClaudeStateTrackerDelegate
+    ClaudeStateTrackerDelegate, ChatViewControllerDelegate
 {
 
     // MARK: - Properties
@@ -17,6 +17,7 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         set { stateTracker.needsAttention = newValue }
     }
     private var terminalVC: TerminalViewController?
+    private var chatVC: ChatViewController?
     var lastTaskDescription: String { stateTracker.lastTaskDescription }
     /// Forwarded from the state tracker.
     var lastWorkingTaskDescription: String { stateTracker.lastWorkingTaskDescription }
@@ -173,6 +174,27 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         window.setFrame(savedFrame, display: false)
     }
 
+    private func showNativeChat() {
+        guard let window else {
+            logger.error("Window is nil in showNativeChat")
+            return
+        }
+        let savedFrame = window.frame
+
+        guard let wsServer = (NSApp.delegate as? AppDelegate)?.wsServer else {
+            logger.error("AppDelegate unavailable, cannot create native chat")
+            return
+        }
+        let vc = ChatViewController(wsServer: wsServer, session: session)
+        vc.delegate = self
+        self.chatVC = vc
+        window.contentViewController = vc
+
+        window.contentMinSize = NSSize(width: 480, height: 320)
+        window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        window.setFrame(savedFrame, display: false)
+    }
+
     // MARK: - State tracker
 
     /// Recreate after `session` changes so title parsing matches the active CLI (controller is reused after launcher → terminal).
@@ -194,6 +216,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         switch config {
         case .claudeCode(let options):
             session = Session(directory: directory, options: options)
+        case .claudeCodeNative(let options):
+            session = Session(directory: directory, options: options)
+            session.renderingMode = .nativeUI
         case .codex(let options):
             session = Session(directory: directory, codexOptions: options)
         case .cursorAgent(let options):
@@ -202,11 +227,36 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
             session = Session(remoteHost: remoteHost, tmuxSession: sessionName, directory: directory)
         case .remoteNewSession(let remoteHost, let remoteDir, let options):
             session = Session(remoteHost: remoteHost, directory: URL(fileURLWithPath: remoteDir), options: options)
+        case .remoteNativeSession(let remoteHost, let remoteDir, let options):
+            session = Session(remoteHost: remoteHost, directory: URL(fileURLWithPath: remoteDir), options: options)
+            session.renderingMode = .nativeUI
         }
 
         replaceStateTrackerForCurrentSession()
 
         applyTitles(icon: "⏳")
+
+        // Native UI mode — bypass tmux entirely
+        if case .claudeCodeNative(let options) = config {
+            session.isRunning = true
+            SessionStore.shared.add(session)
+            applyTitles(icon: ClaudeState.idle.icon)
+            showNativeChat()
+            chatVC?.launch(directory: directory, options: options)
+            logger.info("Launched Claude Code (Native UI) in \(directory.path)")
+            return
+        }
+
+        // Remote native UI mode — SSH reverse tunnel
+        if case .remoteNativeSession(let host, let remoteDir, let options) = config {
+            session.isRunning = true
+            SessionStore.shared.add(session)
+            applyTitles(icon: ClaudeState.idle.icon)
+            showNativeChat()
+            chatVC?.launchRemote(host: host, directory: remoteDir, options: options)
+            logger.info("Launched Claude Code (Native UI, Remote) on \(host.host)")
+            return
+        }
 
         do {
             let command: String
@@ -280,6 +330,10 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 // On remote, claude is in PATH — just use "claude"
                 // No hook settings for remote sessions (notifier is local only)
                 command = options.buildCommand(claudePath: "claude")
+
+            case .claudeCodeNative, .remoteNativeSession:
+                // Already handled above — should never reach here
+                return
             }
 
             // Create tmux session (local or remote)
@@ -442,6 +496,51 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
         }
     }
 
+    // MARK: - ChatViewControllerDelegate
+
+    func chatDidComplete(sessionId: String) {
+        let sessionTitle = session.title
+        let isTabVisible = window?.isKeyWindow == true && NSApp.isActive
+
+        if UserDefaults.standard.bool(forKey: Defaults.activateOnStop), !NSApp.isActive {
+            TabManager.shared.bringToFront(sessionId: session.id)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationManager.shared.postTaskCompleted(
+                    sessionTitle: sessionTitle, sessionId: self.session.id.uuidString, isFrontmost: isTabVisible)
+            }
+        } else {
+            NotificationManager.shared.postTaskCompleted(
+                sessionTitle: sessionTitle, sessionId: session.id.uuidString, isFrontmost: isTabVisible)
+        }
+    }
+
+    func chatDidTerminate() {
+        session.isRunning = false
+        chatVC = nil
+
+        if TabManager.shared.windowControllers.count <= 1 {
+            showLauncher()
+            window?.title = "New Tab"
+            window?.tab.attributedTitle = nil
+        } else {
+            window?.close()
+        }
+    }
+
+    func chatTitleDidChange(_ title: String) {
+        window?.title = title
+    }
+
+    func chatStateDidChange(isWorking: Bool) {
+        if isWorking {
+            applyTitles(icon: ClaudeState.working.icon)
+        } else {
+            applyTitles(icon: ClaudeState.idle.icon)
+        }
+    }
+
+    // MARK: - Terminal Process Exit
+
     func terminalProcessDidTerminate(_ vc: TerminalViewController, exitCode: Int32?) {
         session.isRunning = false
         let exitStr = exitCode.map { String($0) } ?? "nil"
@@ -511,9 +610,16 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
     func windowWillClose(_ notification: Notification) {
         stateTracker.stopSpinner()
         stateTracker.stopTitlePolling()
+
+        // Tear down native UI session if active
+        if let chatVC {
+            chatVC.processManager.terminate()
+            self.chatVC = nil
+        }
+
         terminalVC?.teardown()
 
-        if session.isRunning && !TabManager.shared.isTerminating {
+        if session.isRunning && !TabManager.shared.isTerminating && session.renderingMode == .terminal {
             let sessionName = session.tmuxSessionName
             let remoteHost = session.remoteHost
             session.isRunning = false

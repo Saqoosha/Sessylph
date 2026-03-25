@@ -1,5 +1,10 @@
 import Foundation
 
+enum RenderingMode: String, Codable, Sendable {
+    case terminal   // GhosttyKit + tmux (existing)
+    case nativeUI   // SwiftUI chat via --sdk-url
+}
+
 struct Session: Identifiable, Codable, Sendable {
     let id: UUID
     var directory: URL
@@ -9,6 +14,7 @@ struct Session: Identifiable, Codable, Sendable {
     var cursorAgentOptions: CursorAgentOptions?
     var remoteHost: RemoteHost?
     var tmuxSessionName: String
+    var renderingMode: RenderingMode = .terminal
     var isRunning: Bool = false
     var createdAt: Date
 
@@ -31,6 +37,7 @@ struct Session: Identifiable, Codable, Sendable {
         case cursorAgentOptions
         case remoteHost
         case tmuxSessionName
+        case renderingMode
         case createdAt
     }
 
@@ -109,6 +116,7 @@ struct Session: Identifiable, Codable, Sendable {
         cursorAgentOptions = try container.decodeIfPresent(CursorAgentOptions.self, forKey: .cursorAgentOptions)
         remoteHost = try container.decodeIfPresent(RemoteHost.self, forKey: .remoteHost)
         tmuxSessionName = try container.decode(String.self, forKey: .tmuxSessionName)
+        renderingMode = try container.decodeIfPresent(RenderingMode.self, forKey: .renderingMode) ?? .terminal
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }

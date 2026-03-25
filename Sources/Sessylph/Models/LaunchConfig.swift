@@ -2,12 +2,15 @@ import Foundation
 
 enum LaunchConfig {
     case claudeCode(ClaudeCodeOptions)
+    case claudeCodeNative(ClaudeCodeOptions)
     case codex(CodexOptions)
     case cursorAgent(CursorAgentOptions)
     /// Attach to an existing remote tmux session
     case remoteAttach(RemoteHost, sessionName: String)
     /// Create a new session on a remote host (currently Claude Code only — Codex/Cursor Agent lack remote launch support)
     case remoteNewSession(RemoteHost, directory: String, ClaudeCodeOptions)
+    /// Create a new native UI session on a remote host via SSH reverse tunnel
+    case remoteNativeSession(RemoteHost, directory: String, ClaudeCodeOptions)
 
     static func defaultFromUserDefaults() -> LaunchConfig {
         let defaults = UserDefaults.standard
