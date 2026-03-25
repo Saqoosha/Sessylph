@@ -23,6 +23,7 @@ final class TerminalViewController: NSViewController {
     nonisolated(unsafe) private var keyEventMonitor: Any?
     private var paneMonitorTimer: Timer?
     private var lastPaneCount = 1
+    private var lastMouseState = false
     private var isPollingPanes = false
 
     init(session: Session) {
@@ -123,8 +124,9 @@ final class TerminalViewController: NSViewController {
     // MARK: - Pane Monitor
 
     /// Polls tmux pane count and toggles mouse mode:
-    /// single pane → mouse off (GhosttyKit native scroll),
-    /// multiple panes → mouse on (tmux per-pane scroll + click selection).
+    /// - tmux scroll mode → mouse always on (tmux copy-mode handles scroll)
+    /// - native scroll mode → single pane: mouse off (GhosttyKit scroll),
+    ///   multiple panes: mouse on (tmux per-pane scroll + click selection)
     private func startPaneMonitor() {
         let sessionName = session.tmuxSessionName
         let remoteHost = session.remoteHost
@@ -134,12 +136,16 @@ final class TerminalViewController: NSViewController {
                 self.isPollingPanes = true
                 defer { self.isPollingPanes = false }
 
+                let useTmuxScroll = UserDefaults.standard.bool(forKey: Defaults.useTmuxScroll)
                 guard let count = await TmuxManager.shared.getPaneCount(
                     sessionName: sessionName, remoteHost: remoteHost
-                ), self.lastPaneCount != count else { return }
+                ) else { return }
+                let wantMouse = useTmuxScroll || count > 1
+                guard self.lastPaneCount != count || self.lastMouseState != wantMouse else { return }
                 self.lastPaneCount = count
+                self.lastMouseState = wantMouse
                 await TmuxManager.shared.setMouse(
-                    on: count > 1, sessionName: sessionName, remoteHost: remoteHost
+                    on: wantMouse, sessionName: sessionName, remoteHost: remoteHost
                 )
             }
         }
@@ -261,6 +267,7 @@ final class TerminalViewController: NSViewController {
         paneMonitorTimer?.invalidate()
         paneMonitorTimer = nil
         lastPaneCount = 0
+        lastMouseState = false
         ghosttyView.teardown()
         startTmuxAttach()
         if ghosttyView.surface == nil {

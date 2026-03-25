@@ -23,6 +23,9 @@ enum Defaults {
     // MARK: - Appearance
     static let terminalFontName = "terminalFontName"
     static let terminalFontSize = "terminalFontSize"
+    /// When true, scroll events go to tmux (copy-mode) for clean sequential history.
+    /// When false (default), GhosttyKit handles scrolling natively (smooth but may have artifacts).
+    static let useTmuxScroll = "useTmuxScroll"
 
     // MARK: - Notifications
     static let notificationsEnabled = "notificationsEnabled"
@@ -57,6 +60,7 @@ enum Defaults {
             terminalFontName: "Comic Code",
             terminalFontSize: 13.0,
             activateOnStop: false,
+            useTmuxScroll: false,
         ])
     }
 }

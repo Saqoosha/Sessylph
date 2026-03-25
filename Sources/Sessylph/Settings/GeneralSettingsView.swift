@@ -11,6 +11,7 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.activateOnStop) private var activateOnStop = false
     @AppStorage(Defaults.terminalFontName) private var terminalFontName = "Comic Code"
     @AppStorage(Defaults.terminalFontSize) private var terminalFontSize = 13.0
+    @AppStorage(Defaults.useTmuxScroll) private var useTmuxScroll = false
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
 
@@ -71,6 +72,8 @@ struct GeneralSettingsView: View {
                 Text("The quick brown fox jumps over the lazy dog. 0O 1lI")
                     .font(.custom(terminalFontName, size: terminalFontSize))
                     .foregroundStyle(.secondary)
+
+                Toggle("Use tmux scroll (accurate history, not smooth)", isOn: $useTmuxScroll)
             }
             .onChange(of: terminalFontSize) {
                 GhosttyApp.shared.reloadConfig()
