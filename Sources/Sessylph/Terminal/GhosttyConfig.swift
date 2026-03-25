@@ -34,7 +34,10 @@ enum GhosttyConfig {
             "window-padding-y = 4,0",
             "confirm-close-surface = false",
             "copy-on-select = clipboard",
-            "keybind = shift+enter=text:\\x0a",
+            // Let ghostty send Shift+Enter as a normal key event.
+            // tmux extended-keys (CSI u) encodes it as \e[13;2u for Claude Code.
+            // The previous text:\x0a override was swallowed by tmux's PTY.
+            "keybind = shift+enter=unbind",
         ]
 
         let content = lines.joined(separator: "\n") + "\n"
