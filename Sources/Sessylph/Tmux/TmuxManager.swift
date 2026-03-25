@@ -77,6 +77,9 @@ final class TmuxManager: Sendable {
         // Mouse off — let GhosttyKit handle scroll natively via its scrollback buffer.
         // Pane selection by click is handled at the app level (GhosttyTerminalView).
         ";", "set-option", "-g", "mouse", "off",
+        // Large history ensures long Claude sessions retain full output — needed for
+        // tmux scroll mode and for reattach after surface recreation (loses GhosttyKit scrollback).
+        ";", "set-option", "-g", "history-limit", "100000",
         // Remove CLAUDECODE from tmux global environment so new sessions don't
         // inherit it — Claude Code treats its presence as a nested session and
         // refuses to start.
@@ -111,6 +114,7 @@ final class TmuxManager: Sendable {
                 ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
                 ";", "set-option", "-g", "window-size", "latest",
                 ";", "set-option", "-g", "mouse", "off",
+                ";", "set-option", "-g", "history-limit", "100000",
                 ";", "set-environment", "-gu", "CLAUDECODE",
                 // Set COLORTERM so programs inside tmux detect truecolor support.
                 // For reattach, set-environment applies to new panes in this session.
@@ -170,6 +174,7 @@ final class TmuxManager: Sendable {
                 ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
                 ";", "set-option", "-g", "window-size", "latest",
                 ";", "set-option", "-g", "mouse", "off",
+                ";", "set-option", "-g", "history-limit", "100000",
                 ";", "set-environment", "-gu", "CLAUDECODE",
                 ";", "send-keys", "-t", name, wrappedCommand, "Enter",
             ], remoteHost: remoteHost)
