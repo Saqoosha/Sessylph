@@ -1065,7 +1065,12 @@ struct LauncherView: View {
         RemoteHistory.add(hostId: host.id, directory: remoteDirectory)
         remoteHistory = RemoteHistory.load()
 
-        onLaunch?(URL(fileURLWithPath: remoteDirectory), .remoteNewSession(host, directory: remoteDirectory, opts))
+        let renderingMode = UserDefaults.standard.string(forKey: Defaults.defaultRenderingMode) ?? "terminal"
+        if renderingMode == "nativeUI" {
+            onLaunch?(URL(fileURLWithPath: remoteDirectory), .remoteNativeSession(host, directory: remoteDirectory, opts))
+        } else {
+            onLaunch?(URL(fileURLWithPath: remoteDirectory), .remoteNewSession(host, directory: remoteDirectory, opts))
+        }
     }
 
     private func removeRemoteHistory(_ entry: RemoteHistoryEntry) {
@@ -1093,7 +1098,12 @@ struct LauncherView: View {
         RecentDirectories.add(dir)
         var opts = makeClaudeCodeOptions(continueSession: false)
         opts.resumeSessionId = session.id
-        onLaunch?(dir, .claudeCode(opts))
+        let renderingMode = UserDefaults.standard.string(forKey: Defaults.defaultRenderingMode) ?? "terminal"
+        if renderingMode == "nativeUI" {
+            onLaunch?(dir, .claudeCodeNative(opts))
+        } else {
+            onLaunch?(dir, .claudeCode(opts))
+        }
     }
 
     private func launchCodexSession(_ session: CodexSessionEntry) {
@@ -1141,7 +1151,12 @@ struct LauncherView: View {
     private func makeLaunchConfig() -> LaunchConfig {
         switch cliType {
         case .claudeCode:
-            return .claudeCode(makeClaudeCodeOptions())
+            let opts = makeClaudeCodeOptions()
+            let renderingMode = UserDefaults.standard.string(forKey: Defaults.defaultRenderingMode) ?? "terminal"
+            if renderingMode == "nativeUI" {
+                return .claudeCodeNative(opts)
+            }
+            return .claudeCode(opts)
         case .codex:
             return .codex(makeCodexOptions())
         case .cursorAgent:

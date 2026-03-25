@@ -129,4 +129,80 @@ struct ClaudeCodeOptions: Codable, Sendable {
         return envPrefixes.isEmpty ? command : "\(envPrefixes.joined(separator: " ")) \(command)"
     }
 
+    /// Builds CLI arguments for --sdk-url mode (headless/native UI).
+    /// Returns an array of arguments (not a shell command string).
+    func buildSDKArgs(claudePath: String, sdkUrl: String, sessionId: String) -> [String] {
+        var args: [String] = [
+            claudePath,
+            "--print",
+            "--sdk-url", sdkUrl,
+            "--session-id", sessionId,
+            "--output-format", "stream-json",
+            "--input-format", "stream-json",
+            "--include-partial-messages",
+            "--verbose",
+        ]
+
+        if let model {
+            args += ["--model", model]
+        }
+        if let permissionMode {
+            args += ["--permission-mode", permissionMode]
+        }
+        if let allowedTools, !allowedTools.isEmpty {
+            for tool in allowedTools {
+                args += ["--allowedTools", tool]
+            }
+        }
+        if let disallowedTools, !disallowedTools.isEmpty {
+            for tool in disallowedTools {
+                args += ["--disallowedTools", tool]
+            }
+        }
+        if dangerouslySkipPermissions {
+            args.append("--dangerously-skip-permissions")
+        }
+        if continueSession {
+            args.append("-c")
+        }
+        if let resumeSessionId {
+            args += ["-r", resumeSessionId]
+        }
+        if let maxBudgetUSD {
+            args += ["--max-budget-usd", String(format: "%.2f", maxBudgetUSD)]
+        }
+        if let effortLevel {
+            args += ["--effort", effortLevel]
+        }
+        if let systemPrompt {
+            args += ["--system-prompt", systemPrompt]
+        }
+        if let appendSystemPrompt {
+            args += ["--append-system-prompt", appendSystemPrompt]
+        }
+        if let additionalDirs, !additionalDirs.isEmpty {
+            for dir in additionalDirs {
+                args += ["--add-dir", dir]
+            }
+        }
+        if let mcpConfigs, !mcpConfigs.isEmpty {
+            for config in mcpConfigs {
+                args += ["--mcp-config", config]
+            }
+        }
+        if let channels, !channels.isEmpty {
+            for channel in channels {
+                args += ["--channels", channel]
+            }
+        }
+        if bare {
+            args.append("--bare")
+        }
+
+        // Empty prompt — sdk-url mode ignores it but flag is required
+        args += ["-p", ""]
+
+        return args
+    }
+
 }

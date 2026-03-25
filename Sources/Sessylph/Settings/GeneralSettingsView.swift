@@ -14,11 +14,25 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.useTmuxScroll) private var useTmuxScroll = false
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
+    @AppStorage(Defaults.defaultRenderingMode) private var renderingMode = "terminal"
 
     @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
     @State private var monospacedFonts: [String] = []
     var body: some View {
         Form {
+            Section("Rendering") {
+                Picker("Claude Code UI", selection: $renderingMode) {
+                    Text("Terminal").tag("terminal")
+                    Text("Native UI (Beta)").tag("nativeUI")
+                }
+                .pickerStyle(.segmented)
+                if renderingMode == "nativeUI" {
+                    Text("Uses SwiftUI chat interface instead of terminal emulator. Claude Code only.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Claude Code Defaults") {
                 Picker("Default Model", selection: $defaultModel) {
                     Text("Auto").tag("")

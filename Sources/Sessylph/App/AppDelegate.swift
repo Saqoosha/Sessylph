@@ -15,11 +15,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
+    let wsServer = WebSocketServer()
     nonisolated(unsafe) private var tabSwitchMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Defaults.register()
         GhosttyApp.shared.initialize()
+        do {
+            try wsServer.start()
+        } catch {
+            logger.error("Failed to start WebSocket server: \(error.localizedDescription, privacy: .public)")
+        }
         setupMenu()
         installTabSwitchMonitor()
         setupDistributedNotificationListener()
@@ -55,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         {
             TabManager.shared.isTerminating = true
             SessionStore.shared.save()
+            wsServer.stop()
             return .terminateNow
         }
 
@@ -76,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if response == .alertFirstButtonReturn {
             TabManager.shared.isTerminating = true
             SessionStore.shared.save()
+            wsServer.stop()
             return .terminateNow
         }
         return .terminateCancel

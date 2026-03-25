@@ -33,6 +33,9 @@ enum Defaults {
     static let notifyOnPermission = "notifyOnPermission"
     static let activateOnStop = "activateOnStop"
 
+    // MARK: - Rendering
+    static let defaultRenderingMode = "defaultRenderingMode"
+
     // MARK: - Launcher Options
     static let launcherSkipPermissions = "launcherSkipPermissions"
     static let launcherContinueSession = "launcherContinueSession"
