@@ -540,4 +540,9 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
 
         TabManager.shared.windowControllerDidClose(self)
     }
+
+    /// Tears down the ghostty surface so it is freed before the ghostty app.
+    func teardownTerminal() {
+        terminalVC?.teardown()
+    }
 }
