@@ -69,6 +69,9 @@ final class TmuxManager: Sendable {
         ";", "set-option", "-s", "extended-keys", "on",
         ";", "set-option", "-s", "extended-keys-format", "csi-u",
         ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+        // NOTE: smcup@:rmcup@ is NOT set for local sessions — it causes scrollback
+        // corruption from cursor manipulation. Use tmux scroll mode for clean history.
+        // Remote sessions DO set it (inline) since native scroll won't work without it.
         // Use the latest active client's size (not the smallest)
         ";", "set-option", "-g", "window-size", "latest",
         // Mouse off — let GhosttyKit handle scroll natively via its scrollback buffer.
@@ -108,6 +111,7 @@ final class TmuxManager: Sendable {
                 // Server-level options
                 ";", "set-option", "-s", "extended-keys", "on",
                 ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+                ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
                 ";", "set-option", "-g", "window-size", "latest",
                 ";", "set-option", "-g", "mouse", "off",
                 ";", "set-option", "-g", "history-limit", "100000",
@@ -167,6 +171,7 @@ final class TmuxManager: Sendable {
                 ";", "set-option", "-t", name, "status", "off",
                 ";", "set-option", "-s", "extended-keys", "on",
                 ";", "set-option", "-sa", "terminal-features", "xterm-256color:extkeys",
+                ";", "set-option", "-sa", "terminal-overrides", ",xterm-256color:smcup@:rmcup@",
                 ";", "set-option", "-g", "window-size", "latest",
                 ";", "set-option", "-g", "mouse", "off",
                 ";", "set-option", "-g", "history-limit", "100000",
