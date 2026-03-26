@@ -145,6 +145,8 @@ struct ChatView: View {
         self.onInterrupt = onInterrupt
     }
 
+    @State private var showCommandPalette = false
+
     var body: some View {
         VStack(spacing: 0) {
             // Connection banner (outside ScrollView for reliable updates)
@@ -221,6 +223,22 @@ struct ChatView: View {
                 isConnected: viewModel.isConnected,
                 slashCommands: viewModel.sessionInfo?.slashCommands ?? []
             )
+        }
+        .sheet(isPresented: $showCommandPalette) {
+            CommandPalette(
+                commands: viewModel.sessionInfo?.slashCommands ?? [],
+                onSelect: { cmd in
+                    showCommandPalette = false
+                    onSend(cmd.trimmingCharacters(in: .whitespaces))
+                }
+            )
+        }
+        .onKeyPress(phases: .down) { press in
+            if press.key == .init("k") && press.modifiers.contains(.command) {
+                showCommandPalette = true
+                return .handled
+            }
+            return .ignored
         }
     }
 }
