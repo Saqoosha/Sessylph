@@ -136,7 +136,6 @@ struct ClaudeCodeOptions: Codable, Sendable {
             claudePath,
             "--print",
             "--sdk-url", sdkUrl,
-            "--session-id", sessionId,
             "--output-format", "stream-json",
             "--input-format", "stream-json",
             "--include-partial-messages",

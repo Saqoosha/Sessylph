@@ -40,17 +40,47 @@ struct MessageBubble: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            // Content blocks
-            ForEach(Array(message.contentBlocks.enumerated()), id: \.offset) { _, block in
-                contentView(for: block)
+            // Content blocks (tool_use paired with following tool_result)
+            let pairedBlocks = pairToolBlocks(message.contentBlocks)
+            ForEach(Array(pairedBlocks.enumerated()), id: \.offset) { _, paired in
+                contentView(for: paired)
             }
         }
         .padding(.vertical, 4)
     }
 
+    private struct PairedBlock {
+        let block: ContentBlock
+        let result: ToolResultBlock?
+    }
+
+    private func pairToolBlocks(_ blocks: [ContentBlock]) -> [PairedBlock] {
+        var paired: [PairedBlock] = []
+        var i = 0
+        while i < blocks.count {
+            let block = blocks[i]
+            if case .toolUse(let toolUse) = block {
+                // Check if next block is a matching tool_result
+                var result: ToolResultBlock? = nil
+                if i + 1 < blocks.count, case .toolResult(let tr) = blocks[i + 1], tr.toolUseId == toolUse.id {
+                    result = tr
+                    i += 1  // Skip the result block
+                }
+                paired.append(PairedBlock(block: block, result: result))
+            } else if case .toolResult = block {
+                // Standalone result (no matching tool_use) — show as-is
+                paired.append(PairedBlock(block: block, result: nil))
+            } else {
+                paired.append(PairedBlock(block: block, result: nil))
+            }
+            i += 1
+        }
+        return paired
+    }
+
     @ViewBuilder
-    private func contentView(for block: ContentBlock) -> some View {
-        switch block {
+    private func contentView(for paired: PairedBlock) -> some View {
+        switch paired.block {
         case .text(let textBlock):
             MarkdownText(source: textBlock.text)
 
@@ -65,7 +95,7 @@ struct MessageBubble: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
         case .toolUse(let toolUse):
-            ToolCallCard(toolUse: toolUse)
+            ToolCallCard(toolUse: toolUse, toolResult: paired.result)
 
         case .toolResult(let toolResult):
             ToolResultView(result: toolResult)

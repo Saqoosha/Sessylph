@@ -26,11 +26,13 @@ struct SystemMessage: Codable, Sendable {
     // init-specific fields
     let model: String?
     let cwd: String?
-    let tools: [ToolInfo]?
+    let tools: [String]?
     let permissionMode: String?
     let claudeCodeVersion: String?
     let mcpServers: [MCPServerInfo]?
-    let slashCommands: [SlashCommandInfo]?
+    let slashCommands: [String]?
+    let skills: [String]?
+    let agents: [String]?
 
     // status-specific
     let status: String?  // "compacting", null
@@ -43,13 +45,9 @@ struct SystemMessage: Codable, Sendable {
         case claudeCodeVersion = "claude_code_version"
         case mcpServers = "mcp_servers"
         case slashCommands = "slash_commands"
+        case skills, agents
         case status
     }
-}
-
-struct ToolInfo: Codable, Sendable {
-    let name: String
-    let description: String?
 }
 
 struct MCPServerInfo: Codable, Sendable {
@@ -57,10 +55,6 @@ struct MCPServerInfo: Codable, Sendable {
     let status: String?
 }
 
-struct SlashCommandInfo: Codable, Sendable {
-    let name: String
-    let description: String?
-}
 
 // MARK: - Assistant Message
 

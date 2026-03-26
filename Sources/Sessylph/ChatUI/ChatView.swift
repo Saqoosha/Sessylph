@@ -20,8 +20,8 @@ final class ChatViewModel {
     struct SessionInfo {
         let model: String?
         let cwd: String?
-        let tools: [ToolInfo]
-        let slashCommands: [SlashCommandInfo]
+        let tools: [String]
+        let slashCommands: [String]
     }
 
     struct PendingPermission {
@@ -147,6 +147,21 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Connection banner (outside ScrollView for reliable updates)
+            if !viewModel.isConnected && viewModel.messages.isEmpty {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Starting Claude Code...")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("This may take 10-20 seconds on first launch")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
             // Message feed
             ScrollViewReader { proxy in
                 ScrollView {
@@ -174,16 +189,24 @@ struct ChatView: View {
                             )
                             .id("permission")
                         }
+
+                        // Bottom anchor for reliable scrolling
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottom")
                     }
                     .padding()
                 }
                 .onChange(of: viewModel.messages.count) {
                     withAnimation {
-                        proxy.scrollTo(viewModel.messages.last?.id, anchor: .bottom)
+                        proxy.scrollTo("bottom", anchor: .bottom)
                     }
                 }
                 .onChange(of: viewModel.streamingText) {
-                    proxy.scrollTo("streaming", anchor: .bottom)
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+                .onChange(of: viewModel.pendingPermission?.requestId) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
 

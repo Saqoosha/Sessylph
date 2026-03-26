@@ -8,7 +8,7 @@ struct ChatInputView: View {
     let onInterrupt: () -> Void
     let isStreaming: Bool
     let isConnected: Bool
-    let slashCommands: [SlashCommandInfo]
+    let slashCommands: [String]
 
     @State private var inputText = ""
     @State private var showSlashPopover = false
@@ -21,7 +21,7 @@ struct ChatInputView: View {
         onInterrupt: @escaping () -> Void,
         isStreaming: Bool,
         isConnected: Bool = true,
-        slashCommands: [SlashCommandInfo] = []
+        slashCommands: [String] = []
     ) {
         self.onSend = onSend
         self.onImageDrop = onImageDrop
@@ -31,9 +31,9 @@ struct ChatInputView: View {
         self.slashCommands = slashCommands
     }
 
-    private var filteredCommands: [SlashCommandInfo] {
+    private var filteredCommands: [String] {
         guard !slashFilter.isEmpty else { return slashCommands }
-        return slashCommands.filter { $0.name.localizedCaseInsensitiveContains(slashFilter) }
+        return slashCommands.filter { $0.localizedCaseInsensitiveContains(slashFilter) }
     }
 
     var body: some View {
@@ -80,40 +80,23 @@ struct ChatInputView: View {
             }
         }
         .padding(12)
-        .overlay(alignment: .center) {
-            if !isConnected {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Connecting to Claude Code...")
-                        .foregroundStyle(.secondary)
-                }
-                .allowsHitTesting(false)
-            }
-        }
         .onAppear { isFocused = true }
     }
 
     // MARK: - Slash Command Popover
 
     private var slashCommandList: some View {
-        List(filteredCommands, id: \.name) { cmd in
+        List(filteredCommands, id: \.self) { cmd in
             Button {
-                inputText = "/\(cmd.name) "
+                inputText = "/\(cmd) "
                 showSlashPopover = false
             } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("/\(cmd.name)")
-                        .fontWeight(.medium)
-                    if let desc = cmd.description {
-                        Text(desc)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text("/\(cmd)")
+                    .fontWeight(.medium)
             }
             .buttonStyle(.plain)
         }
-        .frame(width: 250, height: min(CGFloat(filteredCommands.count) * 44, 220))
+        .frame(width: 250, height: min(max(CGFloat(filteredCommands.count) * 30, 40), 220))
     }
 
     private func updateSlashPopover(_ text: String) {

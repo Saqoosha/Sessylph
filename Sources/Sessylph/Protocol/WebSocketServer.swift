@@ -39,6 +39,7 @@ final class WebSocketServer {
 
     /// The port the server is listening on.
     private(set) var port: UInt16 = 0
+    private var keepAliveTimers: [String: Timer] = [:]
 
     /// Start listening on a random available port.
     func start() throws {
@@ -134,6 +135,7 @@ final class WebSocketServer {
                         logger.info("CLI connected for session \(sessionId, privacy: .public)")
                         self.connections[sessionId] = connection
                         self.parsers[sessionId] = NDJSONParser()
+                        self.startKeepAlive(for: sessionId)
                         self.connectHandlers[sessionId]?()
                         self.receiveMessages(on: connection, sessionId: sessionId)
                     }
@@ -154,18 +156,24 @@ final class WebSocketServer {
     }
 
     private func extractSessionId(from connection: NWConnection, completion: @escaping @MainActor (String?) -> Void) {
-        // NWListener WebSocket doesn't directly expose the HTTP upgrade path.
-        // Use a pending-session queue: pre-register expected sessionIds and match
-        // by connection order. Since we control both sides (spawn + listen),
-        // this is reliable.
-
+        // Strategy 1: Match from pending queue (new session launch)
         if let sessionId = pendingSessions.first {
             pendingSessions.removeFirst()
             completion(sessionId)
-        } else {
-            logger.warning("No pending session for new connection")
-            completion(nil)
+            return
         }
+
+        // Strategy 2: Reconnect — find a registered session that lost its connection
+        // CLI may reconnect after brief disconnects. Accept if we have handlers registered.
+        let disconnectedSessions = messageHandlers.keys.filter { connections[$0] == nil }
+        if let sessionId = disconnectedSessions.first {
+            logger.info("Accepting reconnection for session \(sessionId, privacy: .public)")
+            completion(sessionId)
+            return
+        }
+
+        logger.warning("No pending or disconnected session for new connection")
+        completion(nil)
     }
 
     // Sessions waiting for a CLI connection
@@ -187,13 +195,7 @@ final class WebSocketServer {
                 guard let self else { return }
 
                 if let error {
-                    logger.error("Receive error: \(error.localizedDescription, privacy: .public)")
-                    self.handleDisconnect(sessionId: sessionId)
-                    return
-                }
-
-                // Clean close by remote end
-                if isComplete && content == nil {
+                    logger.error("Receive error for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     self.handleDisconnect(sessionId: sessionId)
                     return
                 }
@@ -211,7 +213,24 @@ final class WebSocketServer {
         }
     }
 
+    private func startKeepAlive(for sessionId: String) {
+        keepAliveTimers[sessionId]?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, let connection = self.connections[sessionId] else { return }
+                let msg = "{\"type\":\"keep_alive\"}\n"
+                let data = Data(msg.utf8)
+                let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+                let context = NWConnection.ContentContext(identifier: "keepalive", metadata: [metadata])
+                connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { _ in })
+            }
+        }
+        keepAliveTimers[sessionId] = timer
+    }
+
     private func handleDisconnect(sessionId: String) {
+        keepAliveTimers[sessionId]?.invalidate()
+        keepAliveTimers.removeValue(forKey: sessionId)
         connections.removeValue(forKey: sessionId)
         parsers.removeValue(forKey: sessionId)
         disconnectHandlers[sessionId]?()

@@ -15,6 +15,8 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
     @AppStorage(Defaults.defaultRenderingMode) private var renderingMode = "terminal"
+    @AppStorage(Defaults.nativeUIFontName) private var nativeUIFontName = ""
+    @AppStorage(Defaults.nativeUIFontSize) private var nativeUIFontSize = 13.0
 
     @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
     @State private var monospacedFonts: [String] = []
@@ -29,6 +31,30 @@ struct GeneralSettingsView: View {
                 if renderingMode == "nativeUI" {
                     Text("Uses SwiftUI chat interface instead of terminal emulator. Claude Code only.")
                         .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if renderingMode == "nativeUI" {
+                Section("Native UI Appearance") {
+                    LabeledContent("Font") {
+                        FontPopUpButton(
+                            selection: $nativeUIFontName,
+                            fonts: monospacedFonts,
+                            onSelect: nil
+                        )
+                    }
+                    HStack {
+                        Text("Font Size")
+                        Slider(value: $nativeUIFontSize, in: 10...24, step: 1) {
+                            Text("Font Size")
+                        }
+                        Text("\(Int(nativeUIFontSize))pt")
+                            .monospacedDigit()
+                            .frame(width: 40)
+                    }
+                    Text("The quick brown fox jumps over the lazy dog. 0O 1lI")
+                        .font(nativeUIFontName.isEmpty ? .system(size: nativeUIFontSize, design: .monospaced) : .custom(nativeUIFontName, size: nativeUIFontSize))
                         .foregroundStyle(.secondary)
                 }
             }
