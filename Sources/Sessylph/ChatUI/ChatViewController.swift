@@ -90,12 +90,19 @@ final class ChatViewController: NSHostingController<ChatView> {
                 self?.handleMessage(message)
             },
             onConnect: { [weak self] in
-                self?.processManager.markConnected()
-                self?.viewModel.isConnected = true
-                self?.viewModel.addSystemEvent("Connected to Claude Code")
+                guard let self else { return }
+                let isFirstConnect = !self.processManager.isConnected && self.viewModel.messages.isEmpty
+                self.processManager.markConnected()  // Also flushes queued messages
+                self.viewModel.isConnected = true
+                if isFirstConnect {
+                    self.viewModel.addSystemEvent("Connected to Claude Code")
+                }
             },
             onDisconnect: { [weak self] in
-                self?.viewModel.isConnected = false
+                guard let self else { return }
+                self.processManager.isConnected = false
+                self.viewModel.isConnected = false
+                logger.info("WebSocket disconnected, messages will be queued until reconnect")
             }
         )
     }
@@ -115,6 +122,7 @@ final class ChatViewController: NSHostingController<ChatView> {
     }
 
     private func handleMessage(_ message: StreamMessage) {
+        logger.debug("Received message: \(String(describing: message).prefix(100), privacy: .public)")
         switch message {
         case .system(let sys):
             handleSystemMessage(sys)

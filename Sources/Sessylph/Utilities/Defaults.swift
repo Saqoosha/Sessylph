@@ -36,6 +36,10 @@ enum Defaults {
     // MARK: - Rendering
     static let defaultRenderingMode = "defaultRenderingMode"
 
+    // MARK: - Native UI
+    static let nativeUIFontName = "nativeUIFontName"
+    static let nativeUIFontSize = "nativeUIFontSize"
+
     // MARK: - Launcher Options
     static let launcherSkipPermissions = "launcherSkipPermissions"
     static let launcherContinueSession = "launcherContinueSession"

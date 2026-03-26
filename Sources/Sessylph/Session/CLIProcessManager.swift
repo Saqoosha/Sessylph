@@ -18,7 +18,7 @@ final class CLIProcessManager {
     var onConnected: (() -> Void)?
     var lastError: String?
     private var pendingMessages: [any Encodable & Sendable] = []
-    private(set) var isConnected: Bool = false
+    var isConnected: Bool = false
 
     init(wsServer: WebSocketServer, sessionId: String = UUID().uuidString) {
         self.wsServer = wsServer
@@ -48,7 +48,8 @@ final class CLIProcessManager {
         let loginEnv = EnvironmentBuilder.loginEnvironmentDict()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        // Pass working directory via cd in the command, not via currentDirectoryURL (TCC mitigation)
+        // cd to project dir in shell (not via currentDirectoryURL to avoid TCC on the Process itself)
+        // The CLI will still access files in the project dir which may trigger TCC once
         let cdPrefix = "cd \(shellQuote(directory.path)) && "
         process.arguments = ["-l", "-c", cdPrefix + args.map { shellQuote($0) }.joined(separator: " ")]
         process.currentDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())

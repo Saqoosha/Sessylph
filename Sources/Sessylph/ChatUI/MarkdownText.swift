@@ -5,9 +5,11 @@ import Markdown
 /// Renders Markdown content as a styled SwiftUI Text view.
 struct MarkdownText: View {
     let source: String
+    @AppStorage(Defaults.nativeUIFontSize) private var fontSize = 13.0
 
     var body: some View {
         Text(parseMarkdown(source))
+            .font(.system(size: fontSize))
             .textSelection(.enabled)
     }
 
@@ -29,6 +31,8 @@ struct MarkdownText: View {
 struct CodeBlockView: View {
     let language: String?
     let code: String
+    @AppStorage(Defaults.nativeUIFontName) private var fontName = ""
+    @AppStorage(Defaults.nativeUIFontSize) private var fontSize = 13.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,7 +56,7 @@ struct CodeBlockView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
-                    .font(.system(.body, design: .monospaced))
+                    .font(fontName.isEmpty ? .system(size: fontSize, design: .monospaced) : .custom(fontName, size: fontSize))
                     .textSelection(.enabled)
                     .padding(12)
             }

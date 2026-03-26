@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ToolCallCard: View {
     let toolUse: ToolUseBlock
+    let toolResult: ToolResultBlock?
     @State private var isExpanded = false
 
     var body: some View {
@@ -36,6 +37,24 @@ struct ToolCallCard: View {
                 Divider()
                 toolInputView(toolUse.name, input: toolUse.input)
                     .padding(8)
+                if let toolResult, let content = toolResult.content, !content.isEmpty {
+                    Divider()
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("OUT")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 28, alignment: .leading)
+                        ScrollView {
+                            Text(content)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 200)
+                    }
+                    .padding(8)
+                }
             }
         }
         .background(.quaternary.opacity(0.5))
