@@ -43,6 +43,8 @@ struct ChatInputView: View {
                 .frame(minHeight: 36, maxHeight: 120)
                 .fixedSize(horizontal: false, vertical: true)
                 .focused($isFocused)
+                .disabled(isStreaming)
+                .opacity(isStreaming ? 0.5 : 1.0)
                 .onKeyPress(.return) {
                     if NSEvent.modifierFlags.contains(.shift) {
                         return .ignored  // Allow newline
@@ -86,17 +88,40 @@ struct ChatInputView: View {
     // MARK: - Slash Command Popover
 
     private var slashCommandList: some View {
-        List(filteredCommands, id: \.self) { cmd in
-            Button {
-                inputText = "/\(cmd) "
-                showSlashPopover = false
-            } label: {
-                Text("/\(cmd)")
-                    .fontWeight(.medium)
+        let builtIn = filteredCommands.filter { !$0.contains(":") }
+        let plugins = filteredCommands.filter { $0.contains(":") }
+
+        return List {
+            if !builtIn.isEmpty {
+                Section("Commands") {
+                    ForEach(builtIn, id: \.self) { cmd in
+                        Button {
+                            inputText = "/\(cmd) "
+                            showSlashPopover = false
+                        } label: {
+                            Text("/\(cmd)").fontWeight(.medium)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
-            .buttonStyle(.plain)
+            if !plugins.isEmpty {
+                Section("Skills") {
+                    ForEach(plugins, id: \.self) { cmd in
+                        Button {
+                            inputText = "/\(cmd) "
+                            showSlashPopover = false
+                        } label: {
+                            Text("/\(cmd)")
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
-        .frame(width: 250, height: min(max(CGFloat(filteredCommands.count) * 30, 40), 220))
+        .frame(width: 300, height: min(max(CGFloat(filteredCommands.count) * 28 + 40, 60), 300))
     }
 
     private func updateSlashPopover(_ text: String) {
@@ -111,6 +136,7 @@ struct ChatInputView: View {
     // MARK: - Send
 
     private func sendMessage() {
+        guard !isStreaming else { return }
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         onSend(trimmed)

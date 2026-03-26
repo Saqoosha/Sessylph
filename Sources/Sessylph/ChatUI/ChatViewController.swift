@@ -142,6 +142,8 @@ final class ChatViewController: NSHostingController<ChatView> {
 
         case .result(let result):
             processManager.stateMachine.handleResult(cost: result.totalCostUsd)
+            viewModel.isWaitingForResponse = false
+            viewModel.isStreaming = false
             delegate?.chatStateDidChange(isWorking: false)
             if let sessionId = result.sessionId {
                 delegate?.chatDidComplete(sessionId: sessionId)
@@ -168,11 +170,14 @@ final class ChatViewController: NSHostingController<ChatView> {
                 sessionId: sys.sessionId ?? processManager.sessionId,
                 model: sys.model
             )
+            // Merge slash_commands and skills, deduplicate
+            let allCommands = Array(Set((sys.slashCommands ?? []) + (sys.skills ?? [])))
+                .sorted()
             viewModel.sessionInfo = .init(
                 model: sys.model,
                 cwd: sys.cwd,
                 tools: sys.tools ?? [],
-                slashCommands: sys.slashCommands ?? []
+                slashCommands: allCommands
             )
             logger.info("Session initialized: model=\(sys.model ?? "default", privacy: .public)")
 

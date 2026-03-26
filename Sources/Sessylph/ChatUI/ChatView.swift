@@ -13,6 +13,8 @@ final class ChatViewModel {
     var streamingText: String = ""
     var streamingThinking: String = ""
     var isStreaming: Bool = false
+    /// True from the moment user sends until result is received. Prevents duplicate sends.
+    var isWaitingForResponse: Bool = false
     var isConnected: Bool = false
     var pendingPermission: PendingPermission?
     var sessionInfo: SessionInfo?
@@ -57,6 +59,7 @@ final class ChatViewModel {
         streamingText = ""
         streamingThinking = ""
         isStreaming = false
+        isWaitingForResponse = false
     }
 
     func addUserMessage(_ text: String) {
@@ -68,6 +71,7 @@ final class ChatViewModel {
             timestamp: Date()
         )
         messages.append(chatMsg)
+        isWaitingForResponse = true
     }
 
     func addSystemEvent(_ text: String) {
@@ -145,6 +149,8 @@ struct ChatView: View {
         self.onInterrupt = onInterrupt
     }
 
+    @State private var showCommandPalette = false
+
     var body: some View {
         VStack(spacing: 0) {
             // Connection banner (outside ScrollView for reliable updates)
@@ -217,10 +223,27 @@ struct ChatView: View {
                 onSend: onSend,
                 onImageDrop: onImageDrop,
                 onInterrupt: onInterrupt,
-                isStreaming: viewModel.isStreaming,
+                isStreaming: viewModel.isStreaming || viewModel.isWaitingForResponse,
                 isConnected: viewModel.isConnected,
                 slashCommands: viewModel.sessionInfo?.slashCommands ?? []
             )
+        }
+        .sheet(isPresented: $showCommandPalette) {
+            CommandPalette(
+                commands: viewModel.sessionInfo?.slashCommands ?? [],
+                onSelect: { cmd in
+                    showCommandPalette = false
+                    guard !viewModel.isStreaming && !viewModel.isWaitingForResponse else { return }
+                    onSend(cmd.trimmingCharacters(in: .whitespaces))
+                }
+            )
+        }
+        .onKeyPress(phases: .down) { press in
+            if press.key == .init("k") && press.modifiers.contains(.command) {
+                showCommandPalette = true
+                return .handled
+            }
+            return .ignored
         }
     }
 }

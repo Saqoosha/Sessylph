@@ -15,50 +15,13 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
     @AppStorage(Defaults.defaultRenderingMode) private var renderingMode = "terminal"
-    @AppStorage(Defaults.nativeUIFontName) private var nativeUIFontName = ""
-    @AppStorage(Defaults.nativeUIFontSize) private var nativeUIFontSize = 13.0
+    @AppStorage(Defaults.launcherNoFlicker) private var noFlicker = false
+    @AppStorage(Defaults.launcherScrubSubprocessEnv) private var scrubSubprocessEnv = false
 
     @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
     @State private var monospacedFonts: [String] = []
     var body: some View {
         Form {
-            Section("Rendering") {
-                Picker("Claude Code UI", selection: $renderingMode) {
-                    Text("Terminal").tag("terminal")
-                    Text("Native UI (Beta)").tag("nativeUI")
-                }
-                .pickerStyle(.segmented)
-                if renderingMode == "nativeUI" {
-                    Text("Uses SwiftUI chat interface instead of terminal emulator. Claude Code only.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if renderingMode == "nativeUI" {
-                Section("Native UI Appearance") {
-                    LabeledContent("Font") {
-                        FontPopUpButton(
-                            selection: $nativeUIFontName,
-                            fonts: monospacedFonts,
-                            onSelect: nil
-                        )
-                    }
-                    HStack {
-                        Text("Font Size")
-                        Slider(value: $nativeUIFontSize, in: 10...24, step: 1) {
-                            Text("Font Size")
-                        }
-                        Text("\(Int(nativeUIFontSize))pt")
-                            .monospacedDigit()
-                            .frame(width: 40)
-                    }
-                    Text("The quick brown fox jumps over the lazy dog. 0O 1lI")
-                        .font(nativeUIFontName.isEmpty ? .system(size: nativeUIFontSize, design: .monospaced) : .custom(nativeUIFontName, size: nativeUIFontSize))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             Section("Claude Code Defaults") {
                 Picker("Default Model", selection: $defaultModel) {
                     Text("Auto").tag("")
@@ -79,6 +42,8 @@ struct GeneralSettingsView: View {
                         Text(PermissionMode.label(for: mode)).tag(mode)
                     }
                 }
+
+                Toggle("Scrub Subprocess Credentials", isOn: $scrubSubprocessEnv)
             }
 
             Section("Notifications") {
@@ -114,6 +79,7 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Toggle("Use tmux scroll (accurate history, not smooth)", isOn: $useTmuxScroll)
+                Toggle("Flicker-Free Rendering", isOn: $noFlicker)
             }
             .onChange(of: terminalFontSize) {
                 GhosttyApp.shared.reloadConfig()

@@ -45,6 +45,7 @@ enum Defaults {
     static let launcherContinueSession = "launcherContinueSession"
     static let launcherVerbose = "launcherVerbose"
     static let launcherScrubSubprocessEnv = "launcherScrubSubprocessEnv"
+    static let launcherNoFlicker = "launcherNoFlicker"
 
     // MARK: - Confirmations
     static let suppressCloseTabAlert = "suppressCloseTabAlert"
