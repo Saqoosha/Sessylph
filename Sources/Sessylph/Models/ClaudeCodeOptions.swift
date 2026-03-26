@@ -17,6 +17,9 @@ struct ClaudeCodeOptions: Codable, Sendable {
     var effortLevel: String? = nil
     var bare: Bool = false
     var channels: [String]? = nil
+    /// When true, sets CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 to strip Anthropic and cloud
+    /// provider credentials from subprocess environments (Bash tool, hooks, MCP stdio servers).
+    var scrubSubprocessEnv: Bool = false
 
     init() {}
 
@@ -116,7 +119,8 @@ struct ClaudeCodeOptions: Codable, Sendable {
             parts.append(shellQuote(hookSettingsPath))
         }
 
-        return parts.joined(separator: " ")
+        let command = parts.joined(separator: " ")
+        return scrubSubprocessEnv ? "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \(command)" : command
     }
 
 }
