@@ -25,6 +25,8 @@ final class TerminalViewController: NSViewController {
     private var lastPaneCount = 1
     private var lastMouseState = false
     private var isPollingPanes = false
+    private var mouseToggleTask: Task<Void, Never>?
+    nonisolated(unsafe) private var windowResignObserver: NSObjectProtocol?
 
     init(session: Session) {
         self.session = session
@@ -70,6 +72,7 @@ final class TerminalViewController: NSViewController {
         ])
 
         setupCommandStrip()
+        setupCmdLinkToggle()
         installKeyEventMonitor()
     }
 
@@ -113,12 +116,55 @@ final class TerminalViewController: NSViewController {
         if let keyEventMonitor {
             NSEvent.removeMonitor(keyEventMonitor)
         }
+        if let windowResignObserver {
+            NotificationCenter.default.removeObserver(windowResignObserver)
+        }
     }
 
     func teardown() {
         paneMonitorTimer?.invalidate()
         paneMonitorTimer = nil
         ghosttyView.teardown()
+    }
+
+    // MARK: - Cmd Link Toggle
+
+    /// Temporarily disables tmux mouse mode while Cmd is held so ghostty's
+    /// native link detection (underline + Cmd+click) works.
+    private func setupCmdLinkToggle() {
+        let sessionName = session.tmuxSessionName
+        let remoteHost = session.remoteHost
+
+        ghosttyView.onCmdChange = { [weak self] cmdDown in
+            guard let self else { return }
+            guard self.lastMouseState else { return }
+
+            // Cancel any in-flight toggle to avoid out-of-order completion
+            self.mouseToggleTask?.cancel()
+            self.mouseToggleTask = Task {
+                await TmuxManager.shared.setMouse(
+                    on: !cmdDown, sessionName: sessionName, remoteHost: remoteHost
+                )
+            }
+        }
+
+        // Restore mouse mode if the window loses focus while Cmd is held —
+        // macOS doesn't fire flagsChanged for the Cmd release in that case.
+        windowResignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.lastMouseState else { return }
+                self.mouseToggleTask?.cancel()
+                self.mouseToggleTask = Task {
+                    await TmuxManager.shared.setMouse(
+                        on: true, sessionName: sessionName, remoteHost: remoteHost
+                    )
+                }
+            }
+        }
     }
 
     // MARK: - Pane Monitor

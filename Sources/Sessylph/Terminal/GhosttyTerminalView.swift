@@ -24,6 +24,8 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
     private var keyTextAccumulator: [String] = []
     /// Tracks current line input for slash command detection
     private var inputLineBuffer = ""
+    /// Called when Cmd key is pressed (true) or released (false).
+    var onCmdChange: ((Bool) -> Void)?
 
     // Scrollbar
     private let scrollThumb = NSView()
@@ -374,6 +376,12 @@ final class GhosttyTerminalView: NSView, @preconcurrency NSTextInputClient {
         keyEvent.text = nil
 
         ghostty_surface_key(surface, keyEvent)
+
+        // Notify Cmd state change so TerminalViewController can temporarily disable
+        // tmux mouse mode — ghostty's link detection only works without mouse tracking.
+        if mod == GHOSTTY_MODS_SUPER.rawValue {
+            onCmdChange?(pressed)
+        }
 
         // Re-evaluate link detection at current mouse position with updated modifiers.
         // Without this, pressing Cmd alone won't highlight hoverable links until mouse moves.
