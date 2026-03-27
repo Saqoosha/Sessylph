@@ -138,9 +138,7 @@ final class GhosttyApp {
         case GHOSTTY_ACTION_MOUSE_VISIBILITY:
             return true
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
-            // Acknowledge so ghostty proceeds with link highlighting (underline + cursor change).
-            // URL payload (action.action.mouse_over_link) is available for future tooltip use.
-            return true
+            return false
         case GHOSTTY_ACTION_RING_BELL:
             NSSound.beep()
             return true
