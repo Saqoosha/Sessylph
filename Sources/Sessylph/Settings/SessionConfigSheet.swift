@@ -40,6 +40,7 @@ struct SessionConfigSheet: View {
                     Toggle("Verbose Output", isOn: $options.verbose)
                     Toggle("Bare Mode (scripted use)", isOn: $options.bare)
                     Toggle("Scrub Credentials from Subprocesses", isOn: $options.scrubSubprocessEnv)
+                    Toggle("Flicker-Free Alt-Screen Rendering", isOn: $options.noFlicker)
 
                     if let budget = options.maxBudgetUSD {
                         HStack {

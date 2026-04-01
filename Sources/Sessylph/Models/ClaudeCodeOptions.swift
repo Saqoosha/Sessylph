@@ -20,6 +20,9 @@ struct ClaudeCodeOptions: Codable, Sendable {
     /// When true, sets CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 to strip Anthropic and cloud
     /// provider credentials from subprocess environments (Bash tool, hooks, MCP stdio servers).
     var scrubSubprocessEnv: Bool = false
+    /// When true, sets CLAUDE_CODE_NO_FLICKER=1 to opt into flicker-free alt-screen rendering
+    /// with virtualized scrollback. Useful when the terminal wrapper can handle the alt-screen buffer.
+    var noFlicker: Bool = false
 
     init() {}
 
@@ -120,7 +123,10 @@ struct ClaudeCodeOptions: Codable, Sendable {
         }
 
         let command = parts.joined(separator: " ")
-        return scrubSubprocessEnv ? "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \(command)" : command
+        var envPrefixes: [String] = []
+        if scrubSubprocessEnv { envPrefixes.append("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1") }
+        if noFlicker { envPrefixes.append("CLAUDE_CODE_NO_FLICKER=1") }
+        return envPrefixes.isEmpty ? command : "\(envPrefixes.joined(separator: " ")) \(command)"
     }
 
 }
