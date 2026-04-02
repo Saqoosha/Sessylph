@@ -43,6 +43,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(title: "⚠️ Turn Failed", body: body, sessionId: sessionId, isFrontmost: isFrontmost)
     }
 
+    func postPermissionDenied(sessionTitle: String, sessionId: String, tool: String?, isFrontmost: Bool) {
+        guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
+        let body = tool.flatMap({ $0.isEmpty ? nil : "\(sessionTitle): \($0) was denied" }) ?? sessionTitle
+        post(title: "🚫 Action Denied", body: body, sessionId: sessionId, isFrontmost: isFrontmost)
+    }
+
     func postCodexTurnReady(sessionTitle: String, sessionId: String, isFrontmost: Bool) {
         guard UserDefaults.standard.bool(forKey: Defaults.notifyOnPermission) else { return }
         post(title: "💬 Codex Is Ready", body: sessionTitle, sessionId: sessionId, isFrontmost: isFrontmost)

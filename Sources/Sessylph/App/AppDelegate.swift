@@ -300,6 +300,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         case "notify":
             NotificationManager.shared.postCodexTurnReady(sessionTitle: notificationBody, sessionId: sessionId, isFrontmost: isTabVisible)
+        case "permission_denied":
+            controller?.markNeedsAttention()
+            NotificationManager.shared.postPermissionDenied(sessionTitle: notificationBody, sessionId: sessionId, tool: message, isFrontmost: isTabVisible)
         case "permission_prompt":
             controller?.markNeedsAttention()
             NotificationManager.shared.postPermissionRequired(sessionTitle: notificationBody, sessionId: sessionId, message: message ?? "Needs your permission", isFrontmost: isTabVisible)

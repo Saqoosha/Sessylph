@@ -52,6 +52,18 @@ enum HookSettingsGenerator {
                         ],
                     ],
                 ],
+                "PermissionDenied": [
+                    [
+                        "matcher": "",
+                        "hooks": [
+                            [
+                                "type": "command",
+                                "command": "\(shellQuote(notifierPath)) \(shellQuote(sessionId)) permission_denied",
+                                "timeout": 5,
+                            ]
+                        ],
+                    ]
+                ],
                 "UserPromptSubmit": [
                     [
                         "matcher": "",
