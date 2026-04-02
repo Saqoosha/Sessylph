@@ -12,6 +12,8 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.terminalFontName) private var terminalFontName = "Comic Code"
     @AppStorage(Defaults.terminalFontSize) private var terminalFontSize = 13.0
     @AppStorage(Defaults.useTmuxScroll) private var useTmuxScroll = false
+    @AppStorage(Defaults.launcherNoFlicker) private var noFlicker = false
+    @AppStorage(Defaults.launcherScrubSubprocessEnv) private var scrubSubprocessEnv = false
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
 
@@ -39,6 +41,8 @@ struct GeneralSettingsView: View {
                         Text(PermissionMode.label(for: mode)).tag(mode)
                     }
                 }
+
+                Toggle("Scrub Subprocess Credentials", isOn: $scrubSubprocessEnv)
             }
 
             Section("Notifications") {
@@ -74,6 +78,7 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Toggle("Use tmux scroll (accurate history, not smooth)", isOn: $useTmuxScroll)
+                Toggle("Flicker-Free Rendering", isOn: $noFlicker)
             }
             .onChange(of: terminalFontSize) {
                 GhosttyApp.shared.reloadConfig()
