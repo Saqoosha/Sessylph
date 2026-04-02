@@ -24,6 +24,7 @@ enum LaunchConfig {
             options.continueSession = defaults.bool(forKey: Defaults.launcherContinueSession)
             options.verbose = defaults.bool(forKey: Defaults.launcherVerbose)
             options.scrubSubprocessEnv = defaults.bool(forKey: Defaults.launcherScrubSubprocessEnv)
+            options.noFlicker = defaults.bool(forKey: Defaults.launcherNoFlicker)
             return .claudeCode(options)
 
         case .codex:
