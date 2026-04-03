@@ -217,7 +217,8 @@ final class TabWindowController: NSWindowController, NSWindowDelegate, TerminalV
                 if let notifierPath = HookSettingsGenerator.notifierPath() {
                     let hooksURL = try HookSettingsGenerator.generate(
                         sessionId: session.id.uuidString,
-                        notifierPath: notifierPath
+                        notifierPath: notifierPath,
+                        disableSkillShellExecution: options.disableSkillShellExecution
                     )
                     hookSettingsPath = hooksURL.path
                 } else {

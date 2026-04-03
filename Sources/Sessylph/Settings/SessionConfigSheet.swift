@@ -41,6 +41,7 @@ struct SessionConfigSheet: View {
                     Toggle("Bare Mode (scripted use)", isOn: $options.bare)
                     Toggle("Scrub Credentials from Subprocesses", isOn: $options.scrubSubprocessEnv)
                     Toggle("Flicker-Free Alt-Screen Rendering", isOn: $options.noFlicker)
+                    Toggle("Disable Skill Shell Execution", isOn: $options.disableSkillShellExecution)
 
                     if let budget = options.maxBudgetUSD {
                         HStack {

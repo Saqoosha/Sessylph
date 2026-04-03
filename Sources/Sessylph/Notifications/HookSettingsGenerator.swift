@@ -3,8 +3,8 @@ import Foundation
 enum HookSettingsGenerator {
     /// Generates a temporary JSON settings file for Claude Code hooks.
     /// The hooks call the bundled sessylph-notifier to relay events to the main app.
-    static func generate(sessionId: String, notifierPath: String) throws -> URL {
-        let settings: [String: Any] = [
+    static func generate(sessionId: String, notifierPath: String, disableSkillShellExecution: Bool = false) throws -> URL {
+        var settings: [String: Any] = [
             "hooks": [
                 "Stop": [
                     [
@@ -78,6 +78,9 @@ enum HookSettingsGenerator {
                 ],
             ]
         ]
+        if disableSkillShellExecution {
+            settings["disableSkillShellExecution"] = true
+        }
 
         let data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
         let tempDir = FileManager.default.temporaryDirectory

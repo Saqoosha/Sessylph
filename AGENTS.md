@@ -47,7 +47,7 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 - `TabWindowController.swift` — NSWindowController, tab management, state delegation
 - `ClaudeStateTracker.swift` — title polling, Claude idle/working/attention state machine
 - `CLIType.swift` — enum for Claude Code / Codex CLI selection
-- `ClaudeCodeOptions.swift` — Claude Code options (model, effort level, permission mode, bare mode, channels, noFlicker, etc.)
+- `ClaudeCodeOptions.swift` — Claude Code options (model, effort level, permission mode, bare mode, channels, noFlicker, disableSkillShellExecution, etc.)
 - `CodexOptions.swift` — Codex options (model, approval mode, resume session)
 - `CodexSessionHistory.swift` — parses recent Codex sessions from `~/.codex` for launcher resume
 - `TmuxManager.swift` — tmux session lifecycle (create, configure, attach, destroy) + remote SSH commands + pane count / mouse mode

@@ -23,6 +23,9 @@ struct ClaudeCodeOptions: Codable, Sendable {
     /// When true, sets CLAUDE_CODE_NO_FLICKER=1 to opt into flicker-free alt-screen rendering
     /// with virtualized scrollback. Useful when the terminal wrapper can handle the alt-screen buffer.
     var noFlicker: Bool = false
+    /// When true, written to the settings file as `disableSkillShellExecution: true` to prevent
+    /// inline shell execution in skills, custom slash commands, and plugin commands.
+    var disableSkillShellExecution: Bool = false
 
     init() {}
 
