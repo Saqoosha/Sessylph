@@ -66,3 +66,14 @@ DistributedNotificationCenter.default().postNotificationName(
     userInfo: userInfo,
     deliverImmediately: true
 )
+
+// For UserPromptSubmit hooks, return hookSpecificOutput.sessionTitle so Claude Code
+// records the prompt text as the session title in its session history.
+if event == "user_prompt", !message.isEmpty {
+    let title = String(message.prefix(100))
+    let output: [String: Any] = ["hookSpecificOutput": ["sessionTitle": title]]
+    if let data = try? JSONSerialization.data(withJSONObject: output),
+       let json = String(data: data, encoding: .utf8) {
+        print(json)
+    }
+}
