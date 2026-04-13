@@ -22,6 +22,10 @@ brew install zig
 mise install zig@0.15.2
 
 # Or download manually from https://ziglang.org/download/
+
+# Verify the installed version matches build.zig.zon requirements:
+zig version
+# Expected: 0.15.2 (or the version specified in build.zig.zon minimum_zig_version)
 ```
 
 > **macOS 26 (Tahoe) note:** Zig 0.15.2 stock release has broken libSystem linking on macOS 26. Use `brew install zig` (which includes the fix as 0.15.2_1+) or wait for an upstream fix.
@@ -93,7 +97,9 @@ done
 
 # 2. Combine all objects into a single archive
 find $WORK/objs -name '*.o' > /tmp/objlist.txt
-xargs libtool -static -o $WORK/libghostty-combined.a < /tmp/objlist.txt
+rm -f $WORK/libghostty-combined.a
+xargs ar -q $WORK/libghostty-combined.a < /tmp/objlist.txt
+ranlib $WORK/libghostty-combined.a
 
 # 3. Verify key symbols are defined
 nm -g $WORK/libghostty-combined.a | grep -E '_ghostty_app_free|_ImGui_Begin|_FT_Activate_Size'
@@ -172,7 +178,7 @@ xcodebuild -downloadComponent MetalToolchain
 
 ### Zig linking failure on macOS 26 (Tahoe)
 
-```
+```text
 error: undefined symbol: _abort
 error: undefined symbol: _free
 error: undefined symbol: _bzero

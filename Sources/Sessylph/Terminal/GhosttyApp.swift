@@ -157,12 +157,10 @@ final class GhosttyApp {
 
     private func handleOpenURL(action: ghostty_action_open_url_s) -> Bool {
         guard let urlPtr = action.url, action.len > 0 else { return false }
-        // Reject null-page addresses (low address guard)
-        guard UInt(bitPattern: urlPtr) > 0x1000 else { return false }
-        let urlStr = String(
-            decoding: UnsafeRawBufferPointer(start: urlPtr, count: Int(action.len)),
-            as: UTF8.self
-        )
+        // Copy the URL bytes immediately — the pointer may be freed after this callback returns
+        let length = Int(action.len)
+        let urlBytes = Data(bytes: urlPtr, count: length)
+        guard let urlStr = String(bytes: urlBytes, encoding: .utf8) else { return false }
         guard let url = URL(string: urlStr),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else { return false }
