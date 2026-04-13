@@ -6,13 +6,29 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>1.22.1</title>
+            <pubDate>Mon, 13 Apr 2026 17:00:29 +0900</pubDate>
+            <sparkle:version>72</sparkle:version>
+            <sparkle:shortVersionString>1.22.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph-1.22.1.dmg" length="10279329" type="application/octet-stream" sparkle:edSignature="GjmA5+rUCAeNsewYk6Vgn+v/uw1I0FMgptelbn/MOKYiNveWYujrhL2VTNYBFlQmfiN9WLIYcUYNUdUDpBvbAQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph72-71.delta" sparkle:deltaFrom="71" length="1059970" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="rIttKus8szshRiYxqCv0xjLGGbfi+Vqvmcmc5DKk4KFit6uqlB/bXKSjT3t3fBXHetSg1+Y+TxNqOaJB37xuBA=="/>
+                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph72-70.delta" sparkle:deltaFrom="70" length="1064758" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="cxxNh4bt5poYarUQYYB3DQL6vv+DnG6bVJZtOhGEEFswAHTolewUOb8lU0cYbujW60Vv4Zfx6GTYLGzaYOK0AA=="/>
+                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph72-69.delta" sparkle:deltaFrom="69" length="1083698" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Rgl1uN3NplhXJdioonsvMhoDRK4yPIjqYl3/tiA9v1c0jLQl+ld2zClQZl1ufwPsu6F+k/YSq5Pv6IrE0zeTDw=="/>
+                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph72-68.delta" sparkle:deltaFrom="68" length="1069046" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="nkmQv6EyZvzZqqkGMrwRMhW2tptr/QlxlxdLB9vKdODB+vR7+Fgxmw+mrA1M293MX0z7G/xyHYuJ7W8p4zUvDw=="/>
+                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph72-67.delta" sparkle:deltaFrom="67" length="1070626" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="G1TlssRodlvp2nCkiwNS+Zdp+Y03YG1OCwEmg2JmNHLx+Ljif4ftGGA810o6gx+dSLL+xdE8MimlwrdI7uCJDw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.22.0</title>
             <pubDate>Thu, 02 Apr 2026 10:46:28 +0900</pubDate>
             <sparkle:version>71</sparkle:version>
             <sparkle:shortVersionString>1.22.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.0/Sessylph-1.22.0.dmg" length="10146359" type="application/octet-stream" sparkle:edSignature="yf2Gm6n5lHeTdWySiZ8LQ0273/IqB5sens4Cw2jLw5+NYQE7lvnTwJjXtTTr40fdZ8bJfUFlW7fBJ18HDI4zDw=="/>
+            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph-1.22.0.dmg" length="10146359" type="application/octet-stream" sparkle:edSignature="yf2Gm6n5lHeTdWySiZ8LQ0273/IqB5sens4Cw2jLw5+NYQE7lvnTwJjXtTTr40fdZ8bJfUFlW7fBJ18HDI4zDw=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.0/Sessylph71-70.delta" sparkle:deltaFrom="70" length="540850" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="hGJwK0wcriK8uJfnOsWkeYZwFjlBRFESFYz8p7XaDa8n3PnXWyI6H06LR3ZkWnjqbR0Kag6LRXkfhhmnslOQBA=="/>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.0/Sessylph71-69.delta" sparkle:deltaFrom="69" length="431826" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="W979WDtWew8yeSxZ6WmgXTagctaMBP9lllV8LdDEHE0FD/snzgB6/PMBymHrlle9OLme4pORiFMflSu9nHZyDg=="/>
@@ -28,29 +44,13 @@
             <sparkle:shortVersionString>1.21.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.0/Sessylph-1.21.5.dmg" length="10275149" type="application/octet-stream" sparkle:edSignature="1aC6xooDdPNO6jol+kE1cil3re/xbVXBDBs88wG3d+1xDuKh7+atpbzISBz0iBCoYEXsrOsmxsdazZJ5bBtIDg=="/>
+            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.1/Sessylph-1.21.5.dmg" length="10275149" type="application/octet-stream" sparkle:edSignature="1aC6xooDdPNO6jol+kE1cil3re/xbVXBDBs88wG3d+1xDuKh7+atpbzISBz0iBCoYEXsrOsmxsdazZJ5bBtIDg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.5/Sessylph70-69.delta" sparkle:deltaFrom="69" length="712458" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="jzFDkkRZDAhcuwmluGfbkEBBlk8rxZB2FrKvb5HBzjSUZxTd3YGzA9sKTavjwIZIG3Q8f/g7reXxV1tIg1hsBw=="/>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.5/Sessylph70-68.delta" sparkle:deltaFrom="68" length="538122" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="gUjySrfATUa3oxyVmkqXR2qiXH/qjgLCzRySmjmOJbJ8q8lc0DGb+xHCyKJs7+wtuxKgrYhpkR6bHIZyjWqeDQ=="/>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.5/Sessylph70-67.delta" sparkle:deltaFrom="67" length="532598" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="emeDpnSWu1DH+Ct2qCNqTMsL1vgtVNQ02s11LYyVSUmcOxugMkUWscwu8yXEKsGWApHcj08C+yqFI9P9/lvsAw=="/>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.5/Sessylph70-66.delta" sparkle:deltaFrom="66" length="531702" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+W57L4rRlvlHGtTMhqOlCK/owtWMY4zsn86Dhtra1v9DJuClSJrQK9iFVOg7qeyZJ5yht4YMcCoYa0AST3kUBg=="/>
                 <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.5/Sessylph70-65.delta" sparkle:deltaFrom="65" length="537862" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="soNppFcMeCEe62bZAJg5uwSRR2p9gT4Mv55GPjgIGWf9gEQwUxGsLtqBV5JlRsqxhsK0zyKfGtxh0tyIfJlEAw=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>1.21.4</title>
-            <pubDate>Thu, 26 Mar 2026 01:06:16 +0900</pubDate>
-            <sparkle:version>69</sparkle:version>
-            <sparkle:shortVersionString>1.21.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.22.0/Sessylph-1.21.4.dmg" length="10142726" type="application/octet-stream" sparkle:edSignature="XPCwsBXTPh0BfoAlrwI9P9iUeQT6RIbwakF2tGOWywiDXN/6lM2myBrV2KVc4WNaZ5iXU/cVtdEfOkIuId3VCg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.4/Sessylph69-68.delta" sparkle:deltaFrom="68" length="516122" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="qN37xKUq7ZJOYtVgSF9MXOVgpPe1F26JGqHPNVqHN/58jhmm/FeAHyWEtKoS24iGMb4begW5JDrshFAmAAtBDA=="/>
-                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.4/Sessylph69-67.delta" sparkle:deltaFrom="67" length="514558" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="eXMGbKgi02WKucZRA2atHqOSPXGjQhv2iT1LnZS8+SPJj7uDtTFFc5JNsSKS90dl7kPq+LWlvHS4zZWb1Ow4Dg=="/>
-                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.4/Sessylph69-66.delta" sparkle:deltaFrom="66" length="514226" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="PTXsdO6/PLuaMoTVTGTiuIUPyvdL8gSELL7JUol9OfhS5bsfuro89+OXkQeozVemkNOa0kahU+5gGKfXMjYsBw=="/>
-                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.4/Sessylph69-65.delta" sparkle:deltaFrom="65" length="515770" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="QNjwQqpOneZdyz4iY9zZQVsb6O2XiJLgePsZxpJYmkxbv8ouFGTV7QLAq+I4x7k3K/QmtsMUrD6bIlZaT5jyBw=="/>
-                <enclosure url="https://github.com/Saqoosha/Sessylph/releases/download/v1.21.4/Sessylph69-56.delta" sparkle:deltaFrom="56" length="557526" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Z6wruJQ5SmGQpKs26Z8ahaxI21xtxnpehhLvEdsHOQLyQKBym/VnyGXa0+l7oiR7angbUsQ0X8ObDdW1FZ+nCw=="/>
             </sparkle:deltas>
         </item>
     </channel>
