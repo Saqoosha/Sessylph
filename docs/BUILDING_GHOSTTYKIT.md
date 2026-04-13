@@ -2,7 +2,7 @@
 
 Sessylph uses [GhosttyKit](https://github.com/ghostty-org/ghostty) (libghostty) as a static library for Metal-accelerated terminal rendering. This document describes how to build `libghostty.a` and `ghostty.h` from source.
 
-> **Current version:** Sessylph uses **Ghostty v1.3.0** (released 2026-03-09). When upgrading, clone with `--branch v1.3.0` (or the desired tag) instead of using the tip of main.
+> **Current version:** Sessylph uses **Ghostty v1.3.1** (released 2026-03-17). When upgrading, clone with `--branch v1.3.1` (or the desired tag) instead of using the tip of main.
 
 > **Note:** libghostty is not a stable public API. Ghostty's author (Mitchell Hashimoto) has stated it is "not stable for general purpose use." Expect breaking changes when updating.
 
@@ -15,20 +15,26 @@ Ghostty requires a **specific version** of Zig. Using a different version (even 
 Check the required version in `build.zig.zon` (`minimum_zig_version` field) or Ghostty's [HACKING.md](https://github.com/ghostty-org/ghostty/blob/main/HACKING.md).
 
 ```bash
-# Install via mise (recommended):
-mise install zig@0.15.2   # Check build.zig.zon for the current required version
+# Install via Homebrew (recommended — includes macOS compatibility patches):
+brew install zig
+
+# Or via mise:
+mise install zig@0.15.2
 
 # Or download manually from https://ziglang.org/download/
 ```
 
+> **macOS 26 (Tahoe) note:** Zig 0.15.2 stock release has broken libSystem linking on macOS 26. Use `brew install zig` (which includes the fix as 0.15.2_1+) or wait for an upstream fix.
+
 ### Other Dependencies
 
 - **Xcode** with macOS SDK (Command Line Tools alone may not be sufficient)
-- **Metal Toolchain** (may need separate download)
+- **Metal Toolchain** (requires separate download on Xcode 26+)
 - **gettext** (for translations)
 
 ```bash
 xcode-select -p  # Verify Xcode is active
+xcodebuild -downloadComponent MetalToolchain  # Required on Xcode 26+
 brew install gettext
 ```
 
@@ -38,8 +44,8 @@ brew install gettext
 
 ```bash
 # Shallow clone of the specific release tag:
-git clone --depth 1 --branch v1.3.0 https://github.com/ghostty-org/ghostty.git
-cd ghostty
+git clone --depth 1 --branch v1.3.1 https://github.com/ghostty-org/ghostty.git /tmp/ghostty-build
+cd /tmp/ghostty-build
 ```
 
 ### 2. Build the Static Library
@@ -47,36 +53,65 @@ cd ghostty
 On macOS, Ghostty's build system produces an XCFramework containing `libghostty.a`.
 
 ```bash
-# If installed via mise:
-~/.local/share/mise/installs/zig/0.15.2/bin/zig build -Demit-xcframework -Doptimize=ReleaseFast
-
-# Or if zig is on PATH:
-zig build -Demit-xcframework -Doptimize=ReleaseFast
+# Build for native (arm64 macOS only):
+zig build -Demit-xcframework=true -Dxcframework-target=native -Doptimize=ReleaseFast
 ```
 
-The output `libghostty.a` is at:
-```
-macos/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a
+> **Note:** The full xcframework build (`-Dxcframework-target=universal`) includes iOS targets whose Metal shaders may fail to compile on some Xcode versions. Use `-Dxcframework-target=native` for macOS-only builds.
+
+### 3. Assemble the Combined Library
+
+The Zig build produces the ghostty C API library and ~15 dependency libraries (FreeType, HarfBuzz, ImGui, etc.) as separate `.a` files in the Zig cache. These must be combined into a single archive.
+
+> **macOS 26 (Tahoe) issue:** `libtool -static` on macOS 26 silently drops Zig-compiled objects that don't have 8-byte alignment. Use the `ar`-based workaround below instead.
+>
+> **Zig cache dependency:** This procedure relies on Zig's internal cache structure and was verified with Zig 0.15.2 + Ghostty v1.3.1. The cache layout may change across Zig versions.
+
+```bash
+BUILD_DIR=/tmp/ghostty-build
+ZIG_CACHE=$BUILD_DIR/.zig-cache
+
+# 1. Find all arm64 + macOS (platform 1) static libraries from the Zig cache
+WORK=/tmp/ghostty-macos
+rm -rf $WORK && mkdir -p $WORK/objs
+
+find $ZIG_CACHE/o -name '*.a' -type f | while read lib; do
+    # Check architecture (must be arm64)
+    if ! lipo -info "$lib" 2>/dev/null | grep -q 'arm64'; then continue; fi
+    # Check platform (must be macOS = platform 1, not iOS = 2 or simulator = 7)
+    if ! otool -l "$lib" 2>/dev/null | grep -A2 'LC_BUILD_VERSION' | grep -q 'platform 1'; then continue; fi
+    
+    PREFIX=$(basename $(dirname "$lib"))
+    cd $WORK/objs
+    ar x "$lib"
+    # Prefix extracted .o files to avoid name collisions
+    for f in *.o; do
+        [ -f "$f" ] && mv "$f" "${PREFIX}_${f}"
+    done
+    cd -
+done
+
+# 2. Combine all objects into a single archive
+find $WORK/objs -name '*.o' > /tmp/objlist.txt
+xargs libtool -static -o $WORK/libghostty-combined.a < /tmp/objlist.txt
+
+# 3. Verify key symbols are defined
+nm -g $WORK/libghostty-combined.a | grep -E '_ghostty_app_free|_ImGui_Begin|_FT_Activate_Size'
 ```
 
-### 3. Get the Header File
+### 4. Get the Header File
 
 ```bash
 # The header is in the source tree:
-ls include/ghostty.h
-
-# Or from the XCFramework:
-ls macos/GhosttyKit.xcframework/macos-arm64_x86_64/Headers/ghostty.h
+ls /tmp/ghostty-build/include/ghostty.h
 ```
 
-### 4. Copy to Sessylph
+### 5. Copy to Sessylph
 
 ```bash
 # From the Sessylph project root:
-cp /path/to/ghostty/macos/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a \
-   ghostty/Vendor/libghostty.a
-cp /path/to/ghostty/include/ghostty.h \
-   ghostty/Vendor/ghostty.h
+cp $WORK/libghostty-combined.a ghostty/Vendor/libghostty.a
+cp /tmp/ghostty-build/include/ghostty.h ghostty/Vendor/ghostty.h
 ```
 
 The `module.modulemap` in `ghostty/Vendor/` should already exist:
@@ -115,7 +150,7 @@ After building, `ghostty/Vendor/` should contain:
 
 | File | Size | Description |
 |------|------|-------------|
-| `libghostty.a` | ~272 MB | Static library (universal: arm64 + x86_64) |
+| `libghostty.a` | ~135 MB | Static library (arm64 only, all dependencies bundled) |
 | `ghostty.h` | ~33 KB | C header (embedding API) |
 | `module.modulemap` | ~67 B | Swift module map for `import GhosttyKit` |
 
@@ -129,10 +164,24 @@ After building, `ghostty/Vendor/` should contain:
 error: cannot execute tool 'metal' due to missing Metal Toolchain
 ```
 
-Download the Metal Toolchain component:
+Download the Metal Toolchain component (required on Xcode 26+):
 
 ```bash
 xcodebuild -downloadComponent MetalToolchain
+```
+
+### Zig linking failure on macOS 26 (Tahoe)
+
+```
+error: undefined symbol: _abort
+error: undefined symbol: _free
+error: undefined symbol: _bzero
+```
+
+Stock Zig 0.15.2 has broken libSystem linking on macOS 26. Install the patched version:
+
+```bash
+brew upgrade zig  # Gets 0.15.2_1+ with the fix
 ```
 
 ### Wrong Zig version
@@ -149,13 +198,20 @@ Install the exact Zig version specified in `build.zig.zon` (`minimum_zig_version
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 ```
 
-### Architecture mismatch
+### Undefined symbols at link time
 
-Verify the built library:
+If Sessylph fails to link with undefined symbols (e.g., `_ImGui_Begin`, `_FT_Activate_Size`), the combined library is missing some dependency archives. Re-run the assembly step (Step 3) and verify all arm64+macOS libraries from the Zig cache are included.
+
+```bash
+# Check which library provides a missing symbol:
+find $ZIG_CACHE/o -name '*.a' -exec sh -c 'nm -g "$1" 2>/dev/null | grep -l "_MISSING_SYMBOL" && echo "$1"' _ {} \;
+```
+
+### Architecture verification
 
 ```bash
 lipo -info ghostty/Vendor/libghostty.a
-# Expected: Architectures in the fat file: libghostty.a are: x86_64 arm64
+# Expected: Non-fat file: ghostty/Vendor/libghostty.a is architecture: arm64
 ```
 
 ## References
