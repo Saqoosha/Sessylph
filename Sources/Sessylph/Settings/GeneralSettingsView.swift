@@ -17,7 +17,7 @@ struct GeneralSettingsView: View {
     @AppStorage(Defaults.suppressCloseTabAlert) private var suppressCloseTabAlert = false
     @AppStorage(Defaults.suppressQuitAlert) private var suppressQuitAlert = false
 
-    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
+    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [], effortLevels: [])
     @State private var monospacedFonts: [String] = []
     var body: some View {
         Form {
@@ -31,9 +31,9 @@ struct GeneralSettingsView: View {
 
                 Picker("Effort Level", selection: $defaultEffortLevel) {
                     Text("Auto").tag("")
-                    Text("Low").tag("low")
-                    Text("Medium").tag("medium")
-                    Text("High").tag("high")
+                    ForEach(cliOptions.effortLevels, id: \.self) { level in
+                        Text(ClaudeCLI.effortLevelLabel(level)).tag(level)
+                    }
                 }
 
                 Picker("Permission Mode", selection: $defaultPermissionMode) {
