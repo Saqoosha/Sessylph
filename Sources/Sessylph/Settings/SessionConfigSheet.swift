@@ -5,7 +5,7 @@ struct SessionConfigSheet: View {
     @Environment(\.dismiss) private var dismiss
     var onStart: () -> Void
 
-    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
+    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [], effortLevels: [])
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,9 +20,9 @@ struct SessionConfigSheet: View {
 
                     Picker("Effort Level", selection: binding(for: \.effortLevel)) {
                         Text("Auto").tag("")
-                        Text("Low").tag("low")
-                        Text("Medium").tag("medium")
-                        Text("High").tag("high")
+                        ForEach(cliOptions.effortLevels, id: \.self) { level in
+                            Text(ClaudeCLI.effortLevelLabel(level)).tag(level)
+                        }
                     }
 
                     Picker("Permission Mode", selection: binding(for: \.permissionMode)) {

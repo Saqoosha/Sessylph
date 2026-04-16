@@ -67,7 +67,7 @@ struct LauncherView: View {
     @State private var recentDirectories: [URL] = []
     @State private var hoveredDirectory: URL?
     @State private var isLaunching = false
-    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [])
+    @State private var cliOptions = ClaudeCLI.CLIOptions(modelAliases: [], permissionModes: [], effortLevels: [])
     @State private var codexCLIOptions = CodexCLI.CLIOptions(approvalModes: [])
     @State private var cursorAgentCLIOptions = CursorAgentCLI.CLIOptions(models: [], modes: [], sandboxModes: [])
     @State private var searchText = ""
@@ -260,9 +260,9 @@ struct LauncherView: View {
                         .gridColumnAlignment(.trailing)
                     Picker("", selection: $effortLevel) {
                         Text("Auto").tag("")
-                        Text("Low").tag("low")
-                        Text("Medium").tag("medium")
-                        Text("High").tag("high")
+                        ForEach(cliOptions.effortLevels, id: \.self) { level in
+                            Text(ClaudeCLI.effortLevelLabel(level)).tag(level)
+                        }
                     }
                     .labelsHidden()
                     .fixedSize()
