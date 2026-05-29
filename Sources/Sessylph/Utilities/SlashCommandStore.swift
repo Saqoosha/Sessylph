@@ -31,6 +31,8 @@ enum SlashCommandStore {
         "/ios", "/android",
         // Bundled skills
         "/batch", "/claude-api", "/code-review", "/debug", "/loop", "/reload-skills", "/simplify",
+        // Workflow orchestration
+        "/workflows",
     ]
 
     nonisolated static func isBuiltIn(_ command: String) -> Bool {
