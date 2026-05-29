@@ -74,7 +74,7 @@ pgrep -x Sessylph | xargs kill 2>/dev/null; true
 
 ## Key Patterns
 - Bundle ID: sh.saqoo.Sessylph
-- Development Team: G5G54TCH8W
+- Development Team: VCFY2GFR89 (Tomohiko Koyama, personal); Developer ID: "Developer ID Application: Tomohiko Koyama (VCFY2GFR89)"
 - VCS: jj (Jujutsu)
 - CLI paths resolved dynamically (`claude`, `codex`, `tmux`)
 - Login shell environment captured for process spawning
