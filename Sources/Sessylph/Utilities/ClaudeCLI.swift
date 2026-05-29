@@ -1,6 +1,8 @@
 import Foundation
 import os
 
+private let logger = Logger(subsystem: "sh.saqoo.Sessylph", category: "ClaudeCLI")
+
 enum ClaudeCLI {
     private struct PathCache {
         var claude: String?
@@ -93,13 +95,24 @@ enum ClaudeCLI {
         // Model aliases are not listed as choices in --help, use known list
         let modelAliases = knownModelAliases
         // --effort uses a plain `(low, medium, high, ...)` list instead of `(choices: "...", "...")`
-        let effortLevels = parseEffortLevels(from: helpText) ?? knownEffortLevels
+        let effortLevels: [String]
+        if let parsed = parseEffortLevels(from: helpText) {
+            effortLevels = parsed
+        } else {
+            // Falling back is harmless today (the known list matches reality), but a silent
+            // fallback once hid a parser break when the --effort help format changed. Log it so
+            // a future format change surfaces instead of quietly dropping new effort levels.
+            logger.warning("Failed to parse effort levels from `claude --help`; falling back to known list \(knownEffortLevels, privacy: .public). The CLI help format may have changed.")
+            effortLevels = knownEffortLevels
+        }
 
         return CLIOptions(modelAliases: modelAliases, permissionModes: permissionModes, effortLevels: effortLevels)
     }
 
-    /// Parses the `--effort <level>` help line to extract the comma-separated level list.
-    /// Example line: `--effort <level>    Effort level for the current session (low, medium, high, xhigh, max)`
+    /// Parses the `--effort <level>` help text to extract the comma-separated level list.
+    /// The choices list may wrap onto a continuation line, e.g.:
+    ///   `  --effort <level>    Effort level for the current session`
+    ///   `                      (low, medium, high, xhigh, max)`
     private static func parseEffortLevels(from helpText: String) -> [String]? {
         // Require a word boundary after `--effort` so future flags like `--effort-budget` don't match.
         var searchStart = helpText.startIndex
@@ -113,16 +126,30 @@ enum ClaudeCLI {
             searchStart = next
         }
         guard let flagRange else { return nil }
-        // Restrict the search to the end of the --effort help line (stop at newline).
+        // The flag's help text may wrap across continuation lines, so the choices list
+        // `(low, medium, ...)` can land on a line below the description. Collect the whole
+        // help block: from the text following `--effort` up to the next option entry (a line
+        // starting with two spaces + a dash) or an empty line (CR/LF tolerant).
         let afterFlag = helpText[flagRange.upperBound...]
-        let lineEnd = afterFlag.firstIndex(of: "\n") ?? afterFlag.endIndex
-        let line = afterFlag[..<lineEnd]
+        var blockEnd = afterFlag.endIndex
+        var cursor = afterFlag.startIndex
+        while let nl = afterFlag[cursor...].firstIndex(of: "\n") {
+            let lineStart = afterFlag.index(after: nl)
+            if lineStart == afterFlag.endIndex { blockEnd = nl; break }
+            let rest = afterFlag[lineStart...]
+            if rest.hasPrefix("  -") || rest.first == "\n" || rest.first == "\r" {
+                blockEnd = nl
+                break
+            }
+            cursor = lineStart
+        }
+        let block = afterFlag[..<blockEnd]
 
-        // Find the last `(...)` on the line — the effort level list.
-        guard let openIdx = line.lastIndex(of: "("),
-              let closeIdx = line.lastIndex(of: ")"),
+        // Find the last `(...)` in the block — the effort level list.
+        guard let openIdx = block.lastIndex(of: "("),
+              let closeIdx = block.lastIndex(of: ")"),
               openIdx < closeIdx else { return nil }
-        let inside = line[line.index(after: openIdx)..<closeIdx]
+        let inside = block[block.index(after: openIdx)..<closeIdx]
 
         let levels = inside
             .components(separatedBy: ",")
@@ -146,6 +173,7 @@ enum ClaudeCLI {
         do {
             try process.run()
         } catch {
+            logger.error("`claude --help` failed to launch: \(error.localizedDescription, privacy: .public)")
             return nil
         }
 
