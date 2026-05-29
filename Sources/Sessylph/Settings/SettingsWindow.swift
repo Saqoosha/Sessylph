@@ -43,6 +43,16 @@ final class SettingsWindow: NSObject, NSToolbarDelegate, NSWindowDelegate {
         hostingController.sizingOptions = []
         window.contentViewController = hostingController
 
+        // Setting an NSHostingController as contentViewController imposes content-size
+        // constraints derived from the SwiftUI fitting size, which can shrink the window —
+        // and on macOS 26 (Tahoe) collapses it to ~zero, so it becomes key but never shows
+        // (issue #43). Reset the size constraints and re-assert the intended content size,
+        // mirroring the proven pattern in TabWindowController.makeWindow / showLauncher.
+        window.contentMinSize = Self.minContentSize
+        window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        window.minSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: Self.minContentSize)).size
+        window.setContentSize(Self.minContentSize)
+
         let wc = NSWindowController(window: window)
         wc.shouldCascadeWindows = false
         self.windowController = wc
@@ -72,6 +82,17 @@ final class SettingsWindow: NSObject, NSToolbarDelegate, NSWindowDelegate {
             windowController.window?.toolbar?.selectedItemIdentifier = tab.toolbarItemIdentifier
         }
         if let window = windowController.window {
+            // Re-assert a sane content size before showing. A previously persisted (or
+            // NSHostingController-collapsed) frame can restore the window to ~zero size on
+            // macOS 26, leaving it key-but-invisible (issue #43); recenter afterward so the
+            // resized window isn't pushed offscreen.
+            let contentSize = window.contentRect(forFrameRect: window.frame).size
+            let collapsed = contentSize.width < Self.minContentSize.width
+                || contentSize.height < Self.minContentSize.height
+            if collapsed {
+                window.setContentSize(Self.minContentSize)
+                window.center()
+            }
             // Bring window back to visible screen if it's outside all screens
             let isOnScreen = NSScreen.screens.contains { screen in
                 window.frame.intersects(screen.visibleFrame)
